@@ -1,0 +1,48 @@
+main,
+h1 {
+  max-width: 1000px;
+  margin: auto;
+  text-align: center;
+}
+
+section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.cookie {
+  background-color: whitesmoke;
+  height: 400px;
+  width: 30vw;
+  min-width: 280px;
+  border-radius: 4px;
+  z-index: 1;
+  position: fixed;
+  overflow: auto;
+  bottom: 50px;
+  left: 40px;
+  right: auto;
+}
+
+.cookie-content {
+  padding: 20px;
+}
+
+.cookie-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+button {
+  padding: 5px;
+  background-color: black;
+  color: white;
+  border-radius: 10px;
+}
+
+button:hover {
+  cursor: pointer;
+  background-color: rgb(41, 40, 40);
+}
