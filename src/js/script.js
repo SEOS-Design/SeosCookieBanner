@@ -17,8 +17,33 @@ function acceptAll() {
   document.getElementById('cookie-banner').style.display = 'none';
 }
 
+function acceptEssential() {
+  setCookie('consent', 'accepted', 1);
+  document.getElementById('cookie-banner').style.display = 'none';
+}
+
+//öppna inställningsmodal
+function openSettings() {
+  document.getElementById('cookie-banner').style.display = 'none';
+  document.getElementById('cookie-settings').style.display = 'block';
+}
+
+//toggle switch
+function toggleCookie(element, category) {
+  element.classList.toggle('active');
+}
+
+// gå tillbaka till huvudbanner
+function backToBanner() {
+  document.getElementById('cookie-settings').style.display = 'none';
+  document.getElementById('cookie-banner').style.display = 'block';
+}
+
 //kolla sidladdning
 window.addEventListener('DOMContentLoaded', () => {
   const banner = document.getElementById('cookie-banner');
   banner.style.display = getCookie('consent') ? 'none' : 'block';
+
+  //göm inställningsmodal vid sidladdning
+  document.getElementById('cookie-settings').style.display = 'none';
 });

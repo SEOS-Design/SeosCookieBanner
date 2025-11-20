@@ -43,6 +43,8 @@
                 consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat
                 nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt
                 mollit anim id est laborum.</p>
+
+            <!-- Huvudbanner -->
             <div class="cookie" id="cookie-banner">
                 <div class="cookie-content">
                     <h4>Vi använder oss av cookies. Du bestämmer vilka som får användas.</h4>
@@ -52,10 +54,66 @@
                     </p>
                     <div class="cookie-buttons" id="cookie-btns">
                         <button onclick="acceptAll()">Acceptera alla cookies</button>
-                        <button>Cookie-inställningar</button>
-                        <button>Endast nödvändiga</button>
+                        <button onclick="acceptEssential()">Endast nödvändiga</button>
+                        <button onclick="openSettings()">Cookie inställningar</button>
                     </div>
                 </div>
+            </div>
+
+            <!-- Andra banner (inställningar)-->
+            <div class="cookie" id="cookie-settings">
+                <div class="cookie-content">
+                    <h4>Cookie inställningar</h4>
+                    <p>Välj vilka cookies du vill tillåta</p>
+
+                    <!-- Nödvändiga cookies. Alltid på-->
+                    <div class="cookie-category">
+                        <div class="category-info">
+                            <h5>Nödvändiga cookies</h5>
+                            <p>Alltid aktiv. Krävs för att webbplatsen ska fungera.</p>
+                        </div>
+                    </div>
+
+                    <!-- Prestandacookies -->
+                    <div class="cookie-category">
+                        <div class="category-info">
+                            <h5>Prestandacookies</h5>
+                            <p>Hjälper oss att förbättra webbplatsen</p>
+                        </div>
+                        <div class="toggle-switch" id="performance-toggle" onclick="toggleCookie(this, 'performance')">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+
+                    <!-- Funktionella cookies -->
+                    <div class="cookie-category">
+                        <div class="category-info">
+                            <h5>Funktionella cookies</h5>
+                            <p>minns dina inställningar och preferenser</p>
+                        </div>
+                        <div class="toggle-switch" id="functional-toggle" onclick="toggleCookie(this, 'functional')">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+
+                    <!-- Markandsföringscookies -->
+                    <div class="cookie-category">
+                        <div class="category-info">
+                            <h5>Marknadsföringscookies</h5>
+                            <p>Används för reklam och marknadsföring</p>
+                        </div>
+                        <div class="toggle-switch" id="marketing-toggle" onclick="toggleCookie(this, 'marketing')">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+
+                    <div class="cookie-buttons">
+                        <button onclick="saveSettings()">Spara inställningar</button>
+                        <button onclick="backToBanner()">Tillbaka</button>
+                    </div>
+
+                </div>
+
             </div>
     </main>
 
