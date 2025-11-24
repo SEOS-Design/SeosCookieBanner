@@ -11,6 +11,32 @@ function getCookie(name) {
   return cookie ? cookie.split('=')[1] : null;
 }
 
+function sendTestConsent() {
+  const consent = {
+    necessary: true,
+    analytics: false,
+    marketing: false,
+    functional: false,
+    status: 'necessary_only',
+    timestamp: new Date().toISOString(),
+    policyVersion: '1.0',
+    userAgent: navigator.userAgent,
+  };
+  fetch('http://localhost:3000/consent', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(consent),
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      console.log('response from backend:', data);
+      alert('consent sent!');
+    })
+    .catch((err) => console.error(err));
+}
+
 //acceptera alla cookies
 function acceptAll() {
   setCookie('consent', 'accepted', 1);
