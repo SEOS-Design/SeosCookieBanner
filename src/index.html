@@ -48,12 +48,10 @@
             <div class="cookie" id="cookie-banner">
                 <div class="cookie-content">
                     <h4>Vi använder oss av cookies. Du bestämmer vilka som får användas.</h4>
-                    <p>
-                        consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore
-                        et dolore magna aliqua...
-                    </p>
+                    <a href="#" onclick="showPolicy(); return false;">Läs mer om våra
+                        Cookie Policys här.</a>
+
                     <div class="cookie-buttons" id="cookie-btns">
-                        <button onclick="sendTestConsent()">Skicka test consent</button>
                         <button onclick="acceptAll()">Acceptera alla cookies</button>
                         <button onclick="acceptEssential()">Endast nödvändiga</button>
                         <button onclick="openSettings()">Cookie inställningar</button>
@@ -108,6 +106,8 @@
                         </div>
                     </div>
 
+
+
                     <div class="cookie-buttons">
                         <button onclick="saveSettings()">Spara inställningar</button>
                         <button onclick="backToBanner()">Tillbaka</button>
@@ -115,6 +115,20 @@
 
                 </div>
 
+            </div>
+
+            <!-- Tredje banner (Policy)-->
+            <div class="cookie" id="cookie-policy" style="display: none;">
+                <div class="cookie-content">
+                    <h4 id="policy-version-title">Cookie Policy</h4>
+
+                    <div id="policy-content-area" class="policy-scroll-area">
+                    </div>
+
+                    <div class="cookie-buttons">
+                        <button onclick="closePolicy()">Stäng</button>
+                    </div>
+                </div>
             </div>
     </main>
     <footer>
