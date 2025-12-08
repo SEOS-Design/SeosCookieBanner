@@ -87,6 +87,7 @@ function saveConsentAndSend(payload) {
 //acceptera alla cookies
 function acceptAll() {
   const payload = acceptAllConsent();
+  applyGoogleConsentFromPayload(payload);
   saveConsentAndSend(payload);
   document.getElementById('cookie-banner').style.display = 'none';
 }
@@ -110,6 +111,8 @@ function acceptEssentialConsent() {
 
 function acceptEssential() {
   const payload = acceptEssentialConsent();
+
+  applyGoogleConsentFromPayload(payload);
   saveConsentAndSend(payload);
   document.getElementById('cookie-banner').style.display = 'none';
 }
@@ -173,6 +176,28 @@ async function showPolicy() {
     contentArea.innerHTML = `<p>Kunde inte ansluta till servern för att hämta policy.</p>`;
   }
 }
+
+function applyGoogleConsentFromPayload(payload) {
+  console.log("applyGoogleConsentFromPayload");
+  console.log("Consent that should be applied: ");
+  console.log("Neccessary: ", payload.necessary);
+  console.log("Functional: ", payload.functional);
+  console.log("Marketing: ", payload.marketing);
+  console.log("Analytics: ", payload.analytics);
+  // Om gtag inte finns (något gick fel med GTM), avbryt tyst
+  if (typeof gtag !== 'function') {
+      console.warn('gtag is not defined, cannot apply consent');
+      return;
+  }
+
+  gtag('consent', 'update', {
+      analytics_storage: payload.analytics ? 'granted' : 'denied',
+      ad_storage: payload.marketing ? 'granted' : 'denied',
+      functionality_storage: payload.functional ? 'granted' : 'denied',
+      security_storage: payload.necessary ? 'granted' : 'granted'
+  });
+}
+
 
 //kolla sidladdning
 window.addEventListener('DOMContentLoaded', () => {
