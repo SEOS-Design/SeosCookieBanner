@@ -73,87 +73,130 @@
                 consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat
                 nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt
                 mollit anim id est laborum.</p>
+
             <section class="cookie-section" id="cookie-sectionId">
-                <!-- Huvudbanner -->
                 <div class="cookie" id="cookie-banner" style="display: none;">
                     <div class="cookie-content">
-                        <h4>Vi använder oss av cookies. Du bestämmer vilka som får användas.</h4>
-                        <a href="#" onclick="showPolicy(); return false;">Läs mer om våra
-                            Cookie Policys här.</a>
-                        <div class="cookie-buttons" id="cookie-btns">
-                            <button onclick="acceptAll()">Acceptera alla cookies</button>
-                            <button onclick="acceptEssential()">Endast nödvändiga</button>
-                            <button onclick="openSettings()">Cookie inställningar</button>
+                        <div class="cookie-header">
+                            <img src="/src/Cookie Icon Wrapper.svg" alt="Cookie Icon" class="cookie-icon">
+                            <h4>We value your privacy</h4>
                         </div>
-                    </div>
-                </div>
-
-                <!-- Andra banner (inställningar)-->
-                <div class="cookie" id="cookie-settings" style="display: none;">
-                    <div class="cookie-content">
-                        <h4>Cookie inställningar</h4>
-                        <p>Välj vilka cookies du vill tillåta</p>
-                        <!-- Nödvändiga cookies. Alltid på-->
-                        <div class="cookie-category">
-                            <div class="category-info">
-                                <h5>Nödvändiga cookies</h5>
-                                <p>Alltid aktiv. Krävs för att webbplatsen ska fungera.</p>
-                            </div>
-                        </div>
-                        <!-- Prestandacookies -->
-                        <div class="cookie-category">
-                            <div class="category-info">
-                                <h5>Prestandacookies</h5>
-                                <p>Hjälper oss att förbättra webbplatsen</p>
-                            </div>
-                            <div class="toggle-switch" id="performance-toggle"
-                                onclick="toggleCookie(this, 'performance')">
-                                <div class="toggle-slider"></div>
-                            </div>
-                        </div>
-                        <!-- Funktionella cookies -->
-                        <div class="cookie-category">
-                            <div class="category-info">
-                                <h5>Funktionella cookies</h5>
-                                <p>minns dina inställningar och preferenser</p>
-                            </div>
-                            <div class="toggle-switch" id="functional-toggle"
-                                onclick="toggleCookie(this, 'functional')">
-                                <div class="toggle-slider"></div>
-                            </div>
-                        </div>
-                        <!-- Markandsföringscookies -->
-                        <div class="cookie-category">
-                            <div class="category-info">
-                                <h5>Marknadsföringscookies</h5>
-                                <p>Används för reklam och marknadsföring</p>
-                            </div>
-                            <div class="toggle-switch" id="marketing-toggle" onclick="toggleCookie(this, 'marketing')">
-                                <div class="toggle-slider"></div>
-                            </div>
+                        <div class="cookie-body">
+                            <p>We use cookies to enhance your browsing experience, serve personalized ads or content,
+                                and analyze our traffic. By clicking "Accept All", you consent to our use of cookies.
+                                <a class="policy-link" href="#" onclick="showPolicy(); return false;">Read our Cookie
+                                    Policy.</a>
+                            </p>
                         </div>
 
                         <div class="cookie-buttons">
-                            <button onclick="saveSettings()">Spara inställningar</button>
-                            <button onclick="backToBanner()">Tillbaka</button>
+                            <button class="btn-customize" onclick="openSettings()">
+                                Customize <img src="settings-icon.svg" alt="" class="btn-icon"></button>
+                            <div class="main-actions">
+                                <button class="btn-reject" onclick="acceptEssential()">only necessary</button>
+                                <button class="btn-save" onclick="acceptAll()">Accept all</button>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <!-- Tredje banner (Policy)-->
+
+                <div class="cookie" id="cookie-settings" style="display: none;">
+                    <div class="cookie-content">
+                        <div class="cookie-header">
+                            <img src="/src/Cookie Icon Wrapper.svg" alt="Cookie Icon" class="cookie-icon">
+                            <h4>We value your privacy</h4>
+                        </div>
+
+                        <div class="cookie-body">
+                            <p>We use cookies to enhance your browsing experience, serve personalized ads or content,
+                                and analyze our traffic. By clicking "Accept All", you consent to our use of cookies.
+                                <a class="policy-link" href="#" onclick="showPolicy(); return false;">Read our Cookie
+                                    Policy.</a>
+                            </p>
+                        </div>
+
+                        <div id="settings-grid-dropdown" class="cookie-settings-grid">
+                            <div>
+                                <div class="cookie-category-card">
+                                    <div class="category-text-wrapper">
+                                        <h5>Strictly Necessary <span class="badge">REQUIRED</span></h5>
+                                        <p>These cookies are essential for the website to function properly and cannot
+                                            be disabled.</p>
+                                    </div>
+                                    <div class="toggle-switch always-active">
+                                        <div class="toggle-slider"></div>
+                                    </div>
+                                </div>
+
+                                <div class="cookie-category-card"
+                                    onclick="toggleCookie(this.querySelector('.toggle-switch'), 'performance')">
+                                    <div class="category-text-wrapper">
+                                        <h5>Analytics and Performance</h5>
+                                        <p>Collects anonymized statistics to help us understand how the website is used
+                                            and how it performs.</p>
+                                    </div>
+                                    <div class="toggle-switch" id="performance-toggle">
+                                        <div class="toggle-slider"></div>
+                                    </div>
+                                </div>
+
+                                <div class="cookie-category-card"
+                                    onclick="toggleCookie(this.querySelector('.toggle-switch'), 'functional')">
+                                    <div class="category-text-wrapper">
+                                        <h5>Functional</h5>
+                                        <p>Allows the website to remember your personal preferences and choices for a
+                                            better experience.</p>
+                                    </div>
+                                    <div class="toggle-switch" id="functional-toggle">
+                                        <div class="toggle-slider"></div>
+                                    </div>
+                                </div>
+
+                                <div class="cookie-category-card"
+                                    onclick="toggleCookie(this.querySelector('.toggle-switch'), 'marketing')">
+                                    <div class="category-text-wrapper">
+                                        <h5>Marketing</h5>
+                                        <p>Used to track visitors across websites to deliver relevant and engaging ads.
+                                        </p>
+                                    </div>
+                                    <div class="toggle-switch" id="marketing-toggle">
+                                        <div class="toggle-slider"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="cookie-buttons">
+                            <button class="btn-minimize" onclick="toggleSettingsVisibility()">
+                                <img src="Frame.svg" alt="" class="btn-icon" id="minimize-icon">
+                                <span id="minimize-text">Minimize</span>
+                            </button>
+                            <div class="main-actions">
+                                <button class="btn-back" onclick="backToBanner()">Return</button>
+                                <button class="btn-save" onclick="saveSettings()">Save preferences</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="cookie" id="cookie-policy" style="display: none;">
                     <div class="cookie-content">
                         <h4 id="policy-version-title">Cookie Policy</h4>
-                        <div id="policy-content-area" class="policy-scroll-area">
-                        </div>
+                        <div id="policy-content-area" class="policy-scroll-area"></div>
                         <div class="cookie-buttons">
-                            <button onclick="closePolicy()">Stäng</button>
+                            <button class="btn-save" onclick="closePolicy()">Close</button>
                         </div>
                     </div>
                 </div>
             </section>
+
+            <div style="height: 300vh; padding: 20px; background: linear-gradient(to bottom, #ffffff, #f0f0f0);">
+                <h2>Scrollable Content Area</h2>
+                <p>This area is added to test how the banner behaves when you scroll the page.</p>
+            </div>
+
     </main>
     <footer>
-        <button class="cookie-settings-btn" onclick="openSettings()">
+        <button class="cookie-settings-btn" onclick="openSettings()"> Open cookie settings
         </button>
     </footer>
     <script src="js/script.js"></script>

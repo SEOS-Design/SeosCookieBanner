@@ -328,6 +328,25 @@ function toggleCookie(element) {
   element.classList.toggle('active');
 }
 
+//dropdown logic for settings banner
+function toggleSettingsVisibility() {
+  const grid = document.getElementById('settings-grid-dropdown');
+  const icon = document.getElementById('minimize-icon');
+  const textSpan = document.getElementById('minimize-text');
+
+  if (!grid) return;
+
+  const isHidden = grid.classList.toggle('is-hidden');
+
+  textSpan.innerText = isHidden ? 'Maximize' : 'Minimize';
+
+  if (isHidden) {
+    icon.style.transform = 'rotate(180deg)';
+  } else {
+    icon.style.transform = 'rotate(0deg)';
+  }
+}
+
 //========================================================================
 // POLICY FETCHING
 //========================================================================
