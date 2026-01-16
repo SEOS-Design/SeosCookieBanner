@@ -80,19 +80,19 @@ function hideAllBanners() {
 // Shows the main cookie banner
 function showCookieBanner() {
   hideAllBanners();
-  document.getElementById(BANNER_ID).style.display = 'block';
+  document.getElementById(BANNER_ID).style.display = 'flex';
 }
 
 // Shows the settings modal
 function showSettingsModal() {
   hideAllBanners();
-  document.getElementById(SETTINGS_ID).style.display = 'block';
+  document.getElementById(SETTINGS_ID).style.display = 'flex';
 }
 
 // Shows the policy modal
 function showPolicyModal() {
   hideAllBanners();
-  document.getElementById(POLICY_ID).style.display = 'block';
+  document.getElementById(POLICY_ID).style.display = 'flex';
 }
 
 //========================================================================
@@ -197,9 +197,7 @@ function triggerGTMConsentEvent() {
 }
 
 // Inject specific third-party scripts (Optional, if not done via GTM).
-function injectScriptsByConsent(payload) {
-  // TODO: Lägg till manuell scriptinjektion här om du inte använder GTM för allt.
-}
+function injectScriptsByConsent(payload) {}
 //========================================================================
 // USER ACTION HANDLERS
 //========================================================================
@@ -259,6 +257,35 @@ function openSettings() {
   applyToggleState('functional-toggle', choices.functional);
 
   showSettingsModal();
+
+  // Kontrollera scroll direkt när vi öppnar
+  setTimeout(() => {
+    checkScrollStatus();
+  }, 10);
+}
+
+function checkScrollStatus() {
+  const scrollArea = document.getElementById('scroll-area');
+  const bottomShadow = document.getElementById('bottom-shadow');
+
+  if (scrollArea && bottomShadow) {
+    // Kontrollera om innehållet faktiskt är större än behållaren
+    const hasScroll = scrollArea.scrollHeight > scrollArea.clientHeight;
+
+    // Visa skuggan direkt om scroll behövs, annars dölj
+    bottomShadow.style.opacity = hasScroll ? '1' : '0';
+
+    scrollArea.onscroll = () => {
+      const scrollBottom = scrollArea.scrollHeight - scrollArea.scrollTop - scrollArea.clientHeight;
+
+      // Tona bort skuggan när vi är 15px från botten
+      if (scrollBottom < 15) {
+        bottomShadow.style.opacity = '0';
+      } else {
+        bottomShadow.style.opacity = '1';
+      }
+    };
+  }
 }
 
 function saveSettings() {
@@ -326,25 +353,6 @@ function closePolicy() {
 //toggle switch
 function toggleCookie(element) {
   element.classList.toggle('active');
-}
-
-//dropdown logic for settings banner
-function toggleSettingsVisibility() {
-  const grid = document.getElementById('settings-grid-dropdown');
-  const icon = document.getElementById('minimize-icon');
-  const textSpan = document.getElementById('minimize-text');
-
-  if (!grid) return;
-
-  const isHidden = grid.classList.toggle('is-hidden');
-
-  textSpan.innerText = isHidden ? 'Maximize' : 'Minimize';
-
-  if (isHidden) {
-    icon.style.transform = 'rotate(180deg)';
-  } else {
-    icon.style.transform = 'rotate(0deg)';
-  }
 }
 
 //========================================================================
