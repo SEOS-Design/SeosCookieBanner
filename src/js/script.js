@@ -369,7 +369,6 @@ async function showPolicy() {
   const titleArea = document.getElementById('policy-version-title');
 
   // Show loading state
-  titleArea.innerText = 'Loading...';
   contentArea.innerHTML = '<p>Loading cookie policy...</p>';
 
   try {
@@ -378,7 +377,6 @@ async function showPolicy() {
     if (response.ok) {
       const data = await response.json();
 
-      titleArea.innerText = `Cookie Policy - Version ${data.version}`;
       contentArea.innerHTML = data.content;
     } else {
       titleArea.innerText = 'Could not load policy.';
