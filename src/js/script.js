@@ -4,6 +4,7 @@ let client_consent_id_cache = null;
 
 const SHORT_LIVED_COOKIE_HOURS = 1;
 const LONG_LIVED_COOKIE_DAYS = 30;
+
 //========================================================================
 // COOKIE HELPERS
 //========================================================================
@@ -14,7 +15,6 @@ function generateUUID() {
 }
 
 // sets a cookie with a specified lifespan in days
-// Kolla om det finns säkrare/enklare metod för att ändra tiden för cookies beroende på sidan.
 function setCookie(name, value, days) {
   const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toUTCString();
 
@@ -190,7 +190,7 @@ function applyGoogleConsentFromPayload(payload) {
 // This is the signal that releases the blocked tag.
 function triggerGTMConsentEvent() {
   if (typeof gtag === 'function') {
-    // Namnet MÅSTE matcha Custom Event Trigger i GTM
+    // Naem must mach Custom Event Trigger i GTM
     gtag('event', 'consent_granted_full');
     console.log('[GTM] Firing custom event: consent_granted_full');
   }
@@ -258,7 +258,6 @@ function openSettings() {
 
   showSettingsModal();
 
-  // Kontrollera scroll direkt när vi öppnar
   setTimeout(() => {
     checkScrollStatus();
   }, 10);
@@ -269,16 +268,13 @@ function checkScrollStatus() {
   const bottomShadow = document.getElementById('bottom-shadow');
 
   if (scrollArea && bottomShadow) {
-    // Kontrollera om innehållet faktiskt är större än behållaren
     const hasScroll = scrollArea.scrollHeight > scrollArea.clientHeight;
 
-    // Visa skuggan direkt om scroll behövs, annars dölj
     bottomShadow.style.opacity = hasScroll ? '1' : '0';
 
     scrollArea.onscroll = () => {
       const scrollBottom = scrollArea.scrollHeight - scrollArea.scrollTop - scrollArea.clientHeight;
 
-      // Tona bort skuggan när vi är 15px från botten
       if (scrollBottom < 15) {
         bottomShadow.style.opacity = '0';
       } else {
