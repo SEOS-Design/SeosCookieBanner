@@ -1,9 +1,146 @@
-const API_BASE_URL = 'http://127.0.0.1:3000';
+// CHANGE THIS TO THE DEPLOYED BACKEND ADRESS
+const PRODUCTION_API_URL = 'http://127.0.0.1:3000';
+
+// FUNCTION TO SE IF IT'S RUNNING ON LOCALHOST CURRENTLY
+const isLocalhost =
+  window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+//CHOOSE THE RIGHT URL AUTOMATICALLY
+const API_BASE_URL = isLocalhost ? 'http://127.0.0.1:3000' : PRODUCTION_API_URL;
 
 let client_consent_id_cache = null;
 
 const SHORT_LIVED_COOKIE_HOURS = 1;
 const LONG_LIVED_COOKIE_DAYS = 30;
+
+// Element IDs for the different banners
+const BANNER_ID = 'cookie-banner';
+const SETTINGS_ID = 'cookie-settings';
+const POLICY_ID = 'cookie-policy';
+
+//========================================================================
+// HTML INJECTION for easy plug in
+//========================================================================
+
+function injectStyles() {
+  if (document.querySelector('link[href*="style.css"]')) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = isLocalhost ? 'css/style.css' : 'https://din-frontend.vercel.app/css/style.css';
+  document.head.appendChild(link);
+}
+
+function injectBannerHTML() {
+  // if section already exists, dont inject again
+  if (document.getElementById('cookie-sectionId')) return;
+
+  const bannerHTML = `
+    <section class="cookie-section light-theme" id="cookie-sectionId">
+        <div class="cookie" id="${BANNER_ID}" style="display: none;">
+            <div class="cookie-header">
+                <div class="cookie-icon-container">
+                    <svg class="cookie-icon-svg" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 10C18.0222 10 16.0888 10.5865 14.4443 11.6853C12.7998 12.7841 11.5181 14.3459 10.7612 16.1732C10.0043 18.0004 9.8063 20.0111 10.1922 21.9509C10.578 23.8907 11.5304 25.6725 12.9289 27.0711C14.3275 28.4696 16.1093 29.422 18.0491 29.8079C19.9889 30.1937 21.9996 29.9957 23.8268 29.2388C25.6541 28.4819 27.2159 27.2002 28.3147 25.5557C29.4135 23.9112 30 21.9778 30 20C29.305 20.214 28.5648 20.2345 27.8591 20.0593C27.1533 19.8841 26.5087 19.5198 25.9945 19.0056C25.4803 18.4913 25.116 17.8467 24.9407 17.1409C24.7655 16.4352 24.786 15.695 25 15C24.305 15.214 23.5648 15.2345 22.8591 15.0593C22.1533 14.8841 21.5087 14.5198 20.9945 14.0056C20.4803 13.4913 20.116 12.8467 19.9407 12.1409C19.7655 11.4352 19.786 10.695 20 10Z" />
+                        <path d="M16.5 16.5V16.51" /><path d="M24 23.5V23.51" /><path d="M20 20V20.01" /><path d="M19 25V25.01" /><path d="M15 22V22.01" />
+                    </svg>
+                </div>
+                <h2>We value your privacy</h2>
+            </div>
+            <div class="cookie-content">
+                <div class="cookie-body">
+                    <p>We use cookies to enhance your browsing experience, serve personalized ads or content, and analyze our traffic. By clicking "Accept All", you consent to our use of cookies.
+                    <a class="policy-link" href="#" onclick="showPolicy(); return false;"> Read our Cookie policy</a></p>
+                </div>
+            </div>
+            <div class="cookie-buttons">
+                <button class="btn-customize" onclick="openSettings()">Customize
+                    <svg class="btn-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9.33334 11.3333H3.33334" /><path d="M12.6667 4.66666H6.66666" />
+                        <path d="M11.3333 13.3333C12.4379 13.3333 13.3333 12.4379 13.3333 11.3333C13.3333 10.2288 12.4379 9.33334 11.3333 9.33334C10.2288 9.33334 9.33334 10.2288 9.33334 11.3333C9.33334 12.4379 10.2288 13.3333 11.3333 13.3333Z" />
+                        <path d="M4.66666 6.66666C5.77123 6.66666 6.66666 5.77123 6.66666 4.66666C6.66666 3.56209 5.77123 2.66666 4.66666 2.66666C3.56209 2.66666 2.66666 3.56209 2.66666 4.66666C2.66666 5.77123 3.56209 6.66666 4.66666 6.66666Z" />
+                    </svg>
+                </button>
+                <div class="main-actions">
+                    <button class="btn-reject" onclick="acceptEssential()">Necessary only</button>
+                    <button class="btn-save" onclick="acceptAll()">Accept all</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="cookie" id="${SETTINGS_ID}" style="display: none;">
+            <div class="cookie-header">
+                <div class="cookie-icon-container">
+                    <svg class="cookie-icon-svg" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 10C18.0222 10 16.0888 10.5865 14.4443 11.6853C12.7998 12.7841 11.5181 14.3459 10.7612 16.1732C10.0043 18.0004 9.8063 20.0111 10.1922 21.9509C10.578 23.8907 11.5304 25.6725 12.9289 27.0711C14.3275 28.4696 16.1093 29.422 18.0491 29.8079C19.9889 30.1937 21.9996 29.9957 23.8268 29.2388C25.6541 28.4819 27.2159 27.2002 28.3147 25.5557C29.4135 23.9112 30 21.9778 30 20C29.305 20.214 28.5648 20.2345 27.8591 20.0593C27.1533 19.8841 26.5087 19.5198 25.9945 19.0056C25.4803 18.4913 25.116 17.8467 24.9407 17.1409C24.7655 16.4352 24.786 15.695 25 15C24.305 15.214 23.5648 15.2345 22.8591 15.0593C22.1533 14.8841 21.5087 14.5198 20.9945 14.0056C20.4803 13.4913 20.116 12.8467 19.9407 12.1409C19.7655 11.4352 19.786 10.695 20 10Z" />
+                    </svg>
+                </div>
+                <h2>Cookie Settings</h2>
+            </div>
+            <div class="cookie-content" id="scroll-area">
+                <div class="cookie-body">
+                    <p>Manage your preferences below. Strictly necessary cookies are always active.</p>
+                </div>
+                <div id="settings-container" class="cookie-settings-container">
+                    <div class="cookie-category-card">
+                        <div class="category-text-wrapper">
+                            <h5>Strictly Necessary <span class="badge">REQUIRED</span></h5>
+                            <p>Essential for the website to function properly.</p>
+                        </div>
+                        <div class="toggle-switch always-active"><div class="toggle-slider"></div></div>
+                    </div>
+                    <div class="cookie-category-card" onclick="toggleCookie(this.querySelector('#performance-toggle'))">
+                        <div class="category-text-wrapper">
+                            <h5>Analytics and Performance</h5>
+                            <p>Helps us understand how the website is used.</p>
+                        </div>
+                        <div class="toggle-switch" id="performance-toggle"><div class="toggle-slider"></div></div>
+                    </div>
+                    <div class="cookie-category-card" onclick="toggleCookie(this.querySelector('#functional-toggle'))">
+                        <div class="category-text-wrapper">
+                            <h5>Functional</h5>
+                            <p>Remembers your personal preferences.</p>
+                        </div>
+                        <div class="toggle-switch" id="functional-toggle"><div class="toggle-slider"></div></div>
+                    </div>
+                    <div class="cookie-category-card" onclick="toggleCookie(this.querySelector('#marketing-toggle'))">
+                        <div class="category-text-wrapper">
+                            <h5>Marketing</h5>
+                            <p>Used to deliver relevant ads and track visitors.</p>
+                        </div>
+                        <div class="toggle-switch" id="marketing-toggle"><div class="toggle-slider"></div></div>
+                    </div>
+                </div>
+            </div>
+            <div class="scroll-shadow" id="bottom-shadow"></div>
+            <div class="cookie-buttons">
+                <button class="btn-back" onclick="backToBanner()">Return</button>
+                <div class="main-actions">
+                    <button class="btn-reject" onclick="acceptEssential()">Necessary only</button>
+                    <button class="btn-save" onclick="saveSettings()">Save preferences</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="cookie" id="${POLICY_ID}" style="display: none;">
+            <div class="cookie-header">
+                <div class="cookie-icon-container">
+                    <svg class="cookie-icon-svg" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 10C18.0222 10 16.0888 10.5865 14.4443 11.6853C12.7998 12.7841 11.5181 14.3459 10.7612 16.1732C10.0043 18.0004 9.8063 20.0111 10.1922 21.9509C10.578 23.8907 11.5304 25.6725 12.9289 27.0711C14.3275 28.4696 16.1093 29.422 18.0491 29.8079C19.9889 30.1937 21.9996 29.9957 23.8268 29.2388C25.6541 28.4819 27.2159 27.2002 28.3147 25.5557C29.4135 23.9112 30 21.9778 30 20C29.305 20.214 28.5648 20.2345 27.8591 20.0593C27.1533 19.8841 26.5087 19.5198 25.9945 19.0056C25.4803 18.4913 25.116 17.8467 24.9407 17.1409C24.7655 16.4352 24.786 15.695 25 15C24.305 15.214 23.5648 15.2345 22.8591 15.0593C22.1533 14.8841 21.5087 14.5198 20.9945 14.0056C20.4803 13.4913 20.116 12.8467 19.9407 12.1409C19.7655 11.4352 19.786 10.695 20 10Z" />
+                    </svg>
+                </div>
+                <h2 id="policy-version-title">Cookie Policy</h2>
+            </div>
+            <div class="cookie-content">
+                <div id="policy-content-area"><p>Fetching latest policy..</p></div>
+            </div>
+            <div class="cookie-buttons">
+                <button class="btn-save" onclick="closePolicy()">Close</button>
+            </div>
+        </div>
+    </section>`;
+
+  document.body.insertAdjacentHTML('beforeend', bannerHTML);
+}
 
 //========================================================================
 // COOKIE HELPERS
@@ -64,11 +201,6 @@ function getOrCreateClientId() {
 //========================================================================
 // BANNER VISIBILITY CONTROL
 //========================================================================
-
-// Element IDs for the different banners
-const BANNER_ID = 'cookie-banner';
-const SETTINGS_ID = 'cookie-settings';
-const POLICY_ID = 'cookie-policy';
 
 // Hides all banners and modals
 function hideAllBanners() {
@@ -175,10 +307,20 @@ function applyGoogleConsentFromPayload(payload) {
     return;
   }
   gtag('consent', 'update', {
+    // Button: Analytics and performance
     analytics_storage: payload.analytics ? 'granted' : 'denied',
+
+    // Button: marketing
     ad_storage: payload.marketing ? 'granted' : 'denied',
+    ad_user_data: payload.marketing ? 'granted' : 'denied',
+    ad_personalization: payload.marketing ? 'granted' : 'denied',
+
+    // Button: functional
     functionality_storage: payload.functional ? 'granted' : 'denied',
-    security_storage: payload.necessary ? 'granted' : 'granted',
+    personalization_storage: payload.functional ? 'granted' : 'denied',
+
+    // Button: Strictly necessary
+    security_storage: 'granted',
   });
   console.log('[Google] Consent mode updated:', {
     analytics: payload.analytics ? 'granted' : 'denied',
@@ -348,7 +490,9 @@ function closePolicy() {
 
 //toggle switch
 function toggleCookie(element) {
-  element.classList.toggle('active');
+  if (element) {
+    element.classList.toggle('active');
+  }
 }
 
 //========================================================================
@@ -373,7 +517,9 @@ async function showPolicy() {
     if (response.ok) {
       const data = await response.json();
 
-      contentArea.innerHTML = data.content;
+      contentArea.innerHTML = DOMPurify.sanitize(data.content, {
+        ADD_ATTR: ['target', 'rel'],
+      });
     } else {
       titleArea.innerText = 'Could not load policy.';
       contentArea.innerHTML = `<p>Could not find an active policy for this domain</p>`;
@@ -441,6 +587,10 @@ function loadAndApplySavedConsent() {
   }
 }
 window.addEventListener('DOMContentLoaded', () => {
+  //Create css and HTML first
+  injectStyles();
+  injectBannerHTML();
+
   // Get or create Client ID (for audit)
   getOrCreateClientId();
 

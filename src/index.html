@@ -4,67 +4,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Cookie banner</title>
     <link rel="stylesheet" href="css/style.css">
+
+    <script src="https://unpkg.com/dompurify@3.0.6/dist/purify.min.js"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
         function gtag() { dataLayer.push(arguments); }
         gtag('consent', 'default', {
-            analytics_storage: 'denied', ad_storage: 'denied',
-            functionality_storage: 'denied', security_storage: 'granted'
+            analytics_storage: 'denied', ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
+            functionality_storage: 'denied', personalization_storage: 'denied', security_storage: 'granted'
         });
     </script>
     <script>(function (w, d, s, l, i) {
             w[l] = w[l] || []; w[l].push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' });
             var f = d.getElementsByTagName(s)[0], j = d.createElement(s), dl = l != 'dataLayer' ? '&l=' + l : '';
             j.async = true; j.src = 'https://www.googletagmanager.com/gtm.js?id=' + i + dl; f.parentNode.insertBefore(j, f);
-        })(window, document, 'script', 'dataLayer', 'GTM-NLTP8LMP');</script>
+        })(window, document, 'script', 'dataLayer', 'GTM-K92JJPHR');</script>
 </head>
 
 <body>
-    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NLTP8LMP" height="0" width="0"
-            style="display:none;visibility:hidden"></iframe></noscript>
 
-    <header>
-        <h1>This is a h1 headline</h1>
-    </header>
-    <main>
-        <h2>Lorem ipsum dolor sit amet</h2>
-        <p>consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad
-            minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute
-            irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint
-            occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
-        <section>
-            <h3>Image article</h3>
-            <p>dolor sit amet</p>
-            <img src="https://www.innovativetomato.com/wp-content/uploads/2023/12/webCookies_normal-1.png" alt="">
-        </section>
-        <div>
-            <h4>this is a h4</h4>
-            <p>consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
-                ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis
-                aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
-                Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est
-                laborum.</p>
-        </div>
-
-        <div>
-            <h3>dolor sit amet</h3>
-            <p>consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
-                ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis
-                aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
-                Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est
-                laborum.</p>
-            <!-- <div style="height: 300vh; padding: 20px; background: linear-gradient(to bottom, #ffffff, #f0f0f0);">
-                <h2>Scrollable Content Area</h2>
-                <p>This area is added to test how the banner behaves when you scroll the page.</p>
-            </div> -->
-        </div>
-    </main>
 
     <footer><button class="cookie-settings-btn" onclick="openSettings()"> Open cookie settings</button></footer>
 
-    <section class="cookie-section" id="cookie-sectionId">
+    <section class="cookie-section " id="cookie-sectionId">
 
         <div class="cookie" id="cookie-banner" style="display: flex;">
             <div class="cookie-header">
