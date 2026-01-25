@@ -26,7 +26,9 @@ function injectStyles() {
   if (document.querySelector('link[href*="style.css"]')) return;
   const link = document.createElement('link');
   link.rel = 'stylesheet';
-  link.href = isLocalhost ? 'css/style.css' : 'https://seos-cookie-banner.vercel.app/css/style.css';
+  link.href = isLocalhost
+    ? 'src/css/style.css'
+    : 'https://seos-cookie-banner.vercel.app/src/css/style.css';
   document.head.appendChild(link);
 }
 
