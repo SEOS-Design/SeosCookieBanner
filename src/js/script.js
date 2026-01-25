@@ -1,5 +1,5 @@
 // CHANGE THIS TO THE DEPLOYED BACKEND ADRESS
-const PRODUCTION_API_URL = 'http://127.0.0.1:3000';
+const PRODUCTION_API_URL = 'https://seos-cookie-banner-api.vercel.app';
 
 // FUNCTION TO SE IF IT'S RUNNING ON LOCALHOST CURRENTLY
 const isLocalhost =
@@ -26,7 +26,7 @@ function injectStyles() {
   if (document.querySelector('link[href*="style.css"]')) return;
   const link = document.createElement('link');
   link.rel = 'stylesheet';
-  link.href = isLocalhost ? 'css/style.css' : 'https://din-frontend.vercel.app/css/style.css';
+  link.href = isLocalhost ? 'css/style.css' : 'https://seos-cookie-banner.vercel.app/css/style.css';
   document.head.appendChild(link);
 }
 
@@ -36,7 +36,7 @@ function injectBannerHTML() {
 
   const bannerHTML = `
     <section class="cookie-section light-theme" id="cookie-sectionId">
-        <div class="cookie" id="${BANNER_ID}" style="display: none;">
+        <div class="cookie" id="${BANNER_ID}" style="display: flex;">
             <div class="cookie-header">
                 <div class="cookie-icon-container">
                     <svg class="cookie-icon-svg" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
