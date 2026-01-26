@@ -22,6 +22,20 @@ const POLICY_ID = 'cookie-policy';
 // HTML INJECTION for easy plug in
 //========================================================================
 
+// Function for loading DOMpurify dynamically and protect policy fetching from XSS attacks
+async function ensureDOMPurify() {
+  if (typeof DOMPurify !== 'undefined') return true;
+
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/dompurify@3.0.6/dist/purify.min.js';
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => reject(new Error('Failed to load DOMPurify'));
+    document.head.appendChild(script);
+  });
+}
+
 function injectStyles() {
   if (document.querySelector('link[href*="style.css"]')) return;
   const link = document.createElement('link');
@@ -140,6 +154,12 @@ function injectBannerHTML() {
     </section>`;
 
   document.body.insertAdjacentHTML('beforeend', bannerHTML);
+
+  const footerHTML = `
+  <footer id="cookie-footer-container">
+    <button class="cookie-settings-btn" onclick="openSettings()">Open cookie settings</button>
+  </footer>`;
+  document.body.insertAdjacentHTML('beforeend', footerHTML);
 }
 
 //========================================================================
@@ -512,6 +532,8 @@ async function showPolicy() {
   contentArea.innerHTML = '<p>Loading cookie policy...</p>';
 
   try {
+    await ensureDOMPurify();
+
     const response = await fetch(policyUrl);
 
     if (response.ok) {
