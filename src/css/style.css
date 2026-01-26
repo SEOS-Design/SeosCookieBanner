@@ -209,6 +209,8 @@ button {
 .cookie-settings-btn {
   color: var(--text-main);
   background-color: var(--accent-color);
+  position: static;
+  display: inline-block;
 }
 
 button:hover {

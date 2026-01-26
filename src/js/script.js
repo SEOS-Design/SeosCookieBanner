@@ -49,7 +49,7 @@ function injectBannerHTML() {
   if (document.getElementById('cookie-sectionId')) return;
 
   const bannerHTML = `
-    <section class="cookie-section light-theme" id="cookie-sectionId">
+    <section class="cookie-section " id="cookie-sectionId">
         <div class="cookie" id="${BANNER_ID}" style="display: flex;">
             <div class="cookie-header">
                 <div class="cookie-icon-container">
@@ -156,7 +156,7 @@ function injectBannerHTML() {
   document.body.insertAdjacentHTML('beforeend', bannerHTML);
 
   const footerHTML = `
-  <footer id="cookie-footer-container">
+  <footer id="cookie-footer-container" style="position: static; width: 100%; padding: 40px 20px; text-align: center; display: block; clear: both;">
     <button class="cookie-settings-btn" onclick="openSettings()">Open cookie settings</button>
   </footer>`;
   document.body.insertAdjacentHTML('beforeend', footerHTML);
