@@ -120,6 +120,13 @@
   flex-direction: column;
   position: relative;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /*Hides scrollbar on firefox*/
+  -ms-overflow-style: none; /* Hides scrollbar on Edge*/
+}
+
+/* Hides scrollbar on Chrome and Safari*/
+.cookie-content::-webkit-scrollbar {
+  display: none;
 }
 /* LOGO CONTAINER */
 .cookie-icon-container {
