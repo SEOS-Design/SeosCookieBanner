@@ -155,12 +155,6 @@ function injectBannerHTML() {
     </section>`;
 
   document.body.insertAdjacentHTML('beforeend', bannerHTML);
-
-  const footerHTML = `
-  <footer id="cookie-footer-container" style="position: static; width: 100%; padding: 40px 20px; text-align: center; display: block; clear: both;">
-    <button class="cookie-settings-btn" onclick="openSettings()">Open cookie settings</button>
-  </footer>`;
-  document.body.insertAdjacentHTML('beforeend', footerHTML);
 }
 
 //========================================================================
@@ -622,6 +616,15 @@ function loadAndApplySavedConsent() {
 function initializeBanner() {
   injectStyles();
   injectBannerHTML();
+
+  // footer open cookie settings link
+  const webflowLink = document.getElementById('open-cookie-settings');
+  if (webflowLink) {
+    webflowLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      openSettings();
+    });
+  }
 
   setTimeout(() => {
     getOrCreateClientId();
