@@ -390,26 +390,23 @@ function acceptEssential() {
 // CUSTOM SETTINGS HANDLER
 //========================================================================
 
-// Prepares ands shows teh settings modal by reading current cookie choices
+// Prepares ands shows the settings modal by reading current cookie choices
 function openSettings() {
   let choices = { analytics: false, marketing: false, functional: false };
+
+  const status = getCookie('consent_status');
   const choicesJson = getCookie('consent_choices');
-  // Load existing choices if they exist
-  if (choicesJson) {
+
+  if (status === 'all') {
+    choices = { analytics: true, marketing: true, functional: true };
+  } else if (choicesJson) {
     try {
       choices = JSON.parse(choicesJson);
     } catch (e) {
       console.error('Error parsing consent_choices cookie:', e);
     }
-  } else {
-    // If no choices, set current state based on consent_status if it exists
-    const status = getCookie('consent_status');
-    if (status === 'all') {
-      choices = { analytics: true, marketing: true, functional: true };
-    }
   }
 
-  // Function for applying active class to toggles based on loaded choices
   const applyToggleState = (id, isActive) => {
     const element = document.getElementById(id);
     if (element) {
@@ -417,7 +414,7 @@ function openSettings() {
     }
   };
 
-  // Apply the states to the actual html toggle elements
+  // Applicera tillstånden på HTML-elementen
   applyToggleState('performance-toggle', choices.analytics);
   applyToggleState('marketing-toggle', choices.marketing);
   applyToggleState('functional-toggle', choices.functional);
