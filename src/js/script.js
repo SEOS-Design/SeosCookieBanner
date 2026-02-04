@@ -399,6 +399,8 @@ function openSettings() {
 
   if (status === 'all') {
     choices = { analytics: true, marketing: true, functional: true };
+  } else if (status === 'necessary_only') {
+    choices = { analytics: false, marketing: false, functional: false };
   } else if (choicesJson) {
     try {
       choices = JSON.parse(choicesJson);
@@ -414,7 +416,6 @@ function openSettings() {
     }
   };
 
-  // Applicera tillstånden på HTML-elementen
   applyToggleState('performance-toggle', choices.analytics);
   applyToggleState('marketing-toggle', choices.marketing);
   applyToggleState('functional-toggle', choices.functional);
