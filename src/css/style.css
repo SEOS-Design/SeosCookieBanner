@@ -440,9 +440,10 @@ button:hover {
 @media (max-width: 475px) {
   .cookie-section {
     padding: var(--space-xs);
-    align-items: flex-start;
+    align-items: flex-end;
     justify-content: center;
     padding-top: var(--space-lg);
+    padding-bottom: var(--space-lg);
   }
   .cookie {
     width: 100%;
