@@ -618,23 +618,29 @@ function loadAndApplySavedConsent() {
     }
   }
 }
-window.addEventListener('DOMContentLoaded', () => {
-  //Create css and HTML first
+
+function initializeBanner() {
   injectStyles();
   injectBannerHTML();
 
-  // Get or create Client ID (for audit)
-  getOrCreateClientId();
+  setTimeout(() => {
+    getOrCreateClientId();
 
-  loadAndApplySavedConsent();
+    loadAndApplySavedConsent();
 
-  const consentStatus = getCookie('consent_status');
+    const consentStatus = getCookie('consent_status');
+    if (consentStatus) {
+      hideAllBanners();
+      console.log('[Init] Consent found - banner hidden');
+    } else {
+      showCookieBanner();
+      console.log('[Init] No consent - showing banner');
+    }
+  }, 50);
+}
 
-  if (consentStatus) {
-    hideAllBanners();
-    console.log('[Init] Consent found - banner hidden');
-  } else {
-    showCookieBanner();
-    console.log('[Init] No consent - showing banner');
-  }
-});
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeBanner);
+} else {
+  initializeBanner();
+}
