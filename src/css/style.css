@@ -4,13 +4,13 @@
   --bg-muted: rgba(255, 255, 255, 0.1);
   --text-main: #ffffff;
   --text-muted: #9ca3af;
-  --accent-color: #4f46e5;
+  --accent-color: #686868;
   --accent-hover: #6366f1;
   --bg-dark-btn: #111827;
   --border-color: rgba(255, 255, 255, 0.2);
   --btn-border: rgba(255, 255, 255, 0.5);
-  --logo-color: #3b82f6;
-  --bg-logo-wrapper: #312e81;
+  --logo-color: #ffffff;
+  --bg-logo-wrapper: #686868;
   --bg-customize-btn: #111827;
   --toggle-switch-bg: #374151;
   --scroll-gradient: radial-gradient(
@@ -22,7 +22,7 @@
   --icon-path: url('/src/Cookie Icon Wrapper.svg');
 
   /* Typography */
-  --main-font: 'Inter', sans-serif;
+  --main-font: 'Mona Sans Narrow', sans-serif;
   --header-text-size: clamp(1.125rem, 0.9946rem + 0.6522vw, 1.5rem);
   --body-text-size: clamp(0.875rem, 0.788rem + 0.4348vw, 1.125rem);
   --badge-text-size: 10px;
