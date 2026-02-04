@@ -1,6 +1,6 @@
 :root {
   /* Color scheme dark mode */
-  --bg-main: #111827;
+  --bg-main: #0e0e0e;
   --bg-muted: rgba(255, 255, 255, 0.1);
   --text-main: #ffffff;
   --text-muted: #9ca3af;
@@ -11,7 +11,7 @@
   --btn-border: rgba(255, 255, 255, 0.5);
   --logo-color: #ffffff;
   --bg-logo-wrapper: #686868;
-  --bg-customize-btn: #111827;
+  --bg-customize-btn: #1d1d1d;
   --toggle-switch-bg: #374151;
   --scroll-gradient: radial-gradient(
     ellipse at bottom,
