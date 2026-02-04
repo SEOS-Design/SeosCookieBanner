@@ -49,7 +49,7 @@ function injectBannerHTML() {
 
   const bannerHTML = `
     <section class="cookie-section " id="cookie-sectionId">
-        <div class="cookie" id="${BANNER_ID}" style="display: flex;">
+        <div class="cookie" id="${BANNER_ID}" style="display: none;">
             <div class="cookie-header">
                 <div class="cookie-icon-container">
                     <svg class="cookie-icon-svg" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
