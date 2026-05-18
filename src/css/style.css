@@ -152,6 +152,7 @@
   margin: 0;
   font-size: var(--header-text-size);
   font-weight: 700;
+  text-transform: none;
 }
 .cookie-body p {
   font-size: var(--body-text-size);
@@ -259,6 +260,7 @@ button:hover {
   display: flex;
   align-items: center;
   gap: var(--space-xs);
+  text-transform: none;
 }
 .category-text-wrapper p {
   color: var(--text-muted);
