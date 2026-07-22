@@ -14,6 +14,12 @@ const BANNER_ID = 'cookie-banner';
 const SETTINGS_ID = 'cookie-settings';
 const POLICY_ID = 'cookie-policy';
 
+// Sätt till true för utförlig konsolloggning vid felsökning. Tyst i produktion.
+const DEBUG = false;
+function log(...args) {
+  if (DEBUG) console.log(...args);
+}
+
 //========================================================================
 // TRANSLATIONS
 //========================================================================
@@ -100,8 +106,9 @@ async function ensureDOMPurify() {
 }
 
 function injectStyles() {
-  if (document.querySelector('link[href*="style.css"]')) return;
+  if (document.getElementById('seos-cookie-css')) return;
   const link = document.createElement('link');
+  link.id = 'seos-cookie-css';
   link.rel = 'stylesheet';
   link.href = isLocalhost ? 'css/style.css' : 'https://seos-cookie-banner.vercel.app/css/style.css';
   document.head.appendChild(link);
@@ -256,28 +263,34 @@ function setCookie(name, value, days) {
   ) {
     console.warn('[Security] Insecure cookie - deploy with HTTPS!');
   }
-  document.cookie = `${name}=${value}; expires=${expires}; path=/; SameSite=Lax${secureFlag}`;
+  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax${secureFlag}`;
 }
 
 function getCookie(name) {
   const cookies = document.cookie.split('; ');
   const cookie = cookies.find((c) => c.startsWith(name + '='));
-  return cookie ? cookie.split('=')[1] : null;
+  if (!cookie) return null;
+  const raw = cookie.slice(name.length + 1);
+  try {
+    return decodeURIComponent(raw);
+  } catch (e) {
+    return raw;
+  }
 }
 
 function getOrCreateClientId() {
   if (client_consent_id_cache) {
-    console.log('cache exists with: ', client_consent_id_cache);
+    log('cache exists with: ', client_consent_id_cache);
     return client_consent_id_cache;
   }
 
   let clientId = getCookie('client_consent_id');
-  console.log('Client ID: ', clientId);
+  log('Client ID: ', clientId);
   if (!clientId) {
-    console.log('Generating new guid');
+    log('Generating new guid');
     clientId = generateUUID();
     setCookie('client_consent_id', clientId, 365);
-    console.log('Setting cookie: ', clientId);
+    log('Setting cookie: ', clientId);
   }
 
   client_consent_id_cache = clientId;
@@ -361,7 +374,7 @@ async function saveConsentAndSend(payload) {
       setCookie('consent_status', payload.status, LONG_LIVED_COOKIE_DAYS);
 
       const data = await response.json().catch(() => null);
-      console.log('[Backend] Consent recorded successfully:', data);
+      log('[Backend] Consent recorded successfully:', data);
     } else {
       console.error('[Backend] Consent POST failed, status:', response.status);
 
@@ -392,7 +405,7 @@ function applyGoogleConsentFromPayload(payload) {
     personalization_storage: payload.functional ? 'granted' : 'denied',
     security_storage: 'granted',
   });
-  console.log('[Google] Consent mode updated:', {
+  log('[Google] Consent mode updated:', {
     analytics: payload.analytics ? 'granted' : 'denied',
     marketing: payload.marketing ? 'granted' : 'denied',
     functional: payload.functional ? 'granted' : 'denied',
@@ -402,7 +415,7 @@ function applyGoogleConsentFromPayload(payload) {
 function triggerGTMConsentEvent() {
   if (typeof gtag === 'function') {
     gtag('event', 'consent_granted_full');
-    console.log('[GTM] Firing custom event: consent_granted_full');
+    log('[GTM] Firing custom event: consent_granted_full');
   }
 }
 
@@ -527,7 +540,7 @@ function saveSettings() {
   saveConsentAndSend(payload);
 
   hideAllBanners();
-  console.log('[Settings] Custom choices saved:', choices);
+  log('[Settings] Custom choices saved:', choices);
 }
 
 function backToBanner() {
@@ -593,11 +606,11 @@ function loadAndApplySavedConsent() {
   const consentStatus = getCookie('consent_status');
 
   if (!consentStatus) {
-    console.log('[Init] No saved consent');
+    log('[Init] No saved consent');
     return;
   }
 
-  console.log('[Init] Found saved consent:', consentStatus);
+  log('[Init] Found saved consent:', consentStatus);
 
   let payload;
 
@@ -660,10 +673,10 @@ function initializeBanner() {
     const consentStatus = getCookie('consent_status');
     if (consentStatus) {
       hideAllBanners();
-      console.log('[Init] Consent found - banner hidden');
+      log('[Init] Consent found - banner hidden');
     } else {
       showCookieBanner();
-      console.log('[Init] No consent - showing banner');
+      log('[Init] No consent - showing banner');
     }
   }, 50);
 }
