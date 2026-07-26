@@ -412,6 +412,15 @@ function applyGoogleConsentFromPayload(payload) {
   });
 }
 
+function applyMetaConsentFromPayload(payload) {
+  if (typeof fbq !== 'function') return; // ingen Meta-pixel på sajten → gör inget
+
+  // Meta = annonsspårning → styrs av vår marketing-kategori
+  fbq('consent', payload.marketing ? 'grant' : 'revoke');
+
+  log('[Meta] Consent updated:', payload.marketing ? 'grant' : 'revoke');
+}
+
 function triggerGTMConsentEvent() {
   if (typeof gtag === 'function') {
     gtag('event', 'consent_granted_full');
@@ -430,6 +439,7 @@ function acceptAll() {
   setCookie('consent_status', payload.status, SHORT_LIVED_COOKIE_HOURS / 24);
   hideAllBanners();
   applyGoogleConsentFromPayload(payload);
+  applyMetaConsentFromPayload(payload);
   triggerGTMConsentEvent();
   injectScriptsByConsent(payload);
   saveConsentAndSend(payload);
@@ -440,6 +450,7 @@ function acceptEssential() {
   setCookie('consent_status', payload.status, SHORT_LIVED_COOKIE_HOURS / 24);
   hideAllBanners();
   applyGoogleConsentFromPayload(payload);
+  applyMetaConsentFromPayload(payload);
   saveConsentAndSend(payload);
 }
 
@@ -532,6 +543,7 @@ function saveSettings() {
   setCookie('consent_status', 'custom', SHORT_LIVED_COOKIE_HOURS / 24);
 
   applyGoogleConsentFromPayload(payload);
+  applyMetaConsentFromPayload(payload);
 
   if (analytics) {
     triggerGTMConsentEvent();
@@ -646,6 +658,7 @@ function loadAndApplySavedConsent() {
 
   if (payload) {
     applyGoogleConsentFromPayload(payload);
+    applyMetaConsentFromPayload(payload);
     if (payload.analytics === true) {
       triggerGTMConsentEvent();
       injectScriptsByConsent(payload);
