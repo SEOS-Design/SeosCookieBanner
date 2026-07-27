@@ -85,7 +85,11 @@ const translations = {
   },
 };
 
-const pageLang = document.documentElement.lang?.split('-')[0].toLowerCase();
+// Språk: sätt window.SEOS_COOKIE_LANG = 'sv' på sajten för att styra ENBART bannern.
+// Utan override används sidans <html lang>, annars engelska.
+const pageLang = (window.SEOS_COOKIE_LANG || document.documentElement.lang || '')
+  .split('-')[0]
+  .toLowerCase();
 const t = translations[pageLang] || translations['en'];
 
 //========================================================================
