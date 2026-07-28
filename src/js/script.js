@@ -85,6 +85,17 @@ const translations = {
   },
 };
 
+// Site key identifierar sajten hos API:t. Lases fran scripttaggens
+// data-site-key, eller window.SEOS_SITE_KEY. Saknas den faller API:t
+// tillbaka pa domannamnet (overgangslosning).
+const selfScript =
+  document.currentScript ||
+  document.querySelector('script[src*="seos-cookie-banner"]');
+const SITE_KEY =
+  (selfScript && selfScript.dataset && selfScript.dataset.siteKey) ||
+  window.SEOS_SITE_KEY ||
+  null;
+
 // Språk: sätt window.SEOS_COOKIE_LANG = 'sv' på sajten för att styra ENBART bannern.
 // Utan override används sidans <html lang>, annars engelska.
 const pageLang = (window.SEOS_COOKIE_LANG || document.documentElement.lang || '')
@@ -339,6 +350,7 @@ function acceptAllConsent() {
     marketing: true,
     functional: true,
     client_id: clientId,
+    site_key: SITE_KEY,
     domain: window.location.hostname,
     status: 'all',
     timestamp: new Date().toISOString(),
@@ -355,6 +367,7 @@ function acceptEssentialConsent() {
     marketing: false,
     functional: false,
     client_id: clientId,
+    site_key: SITE_KEY,
     domain: window.location.hostname,
     status: 'necessary_only',
     timestamp: new Date().toISOString(),
@@ -535,6 +548,7 @@ function saveSettings() {
     marketing: marketing,
     functional: functional,
     client_id: clientId,
+    site_key: SITE_KEY,
     domain: window.location.hostname,
     status: 'custom',
     timestamp: new Date().toISOString(),
