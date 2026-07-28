@@ -306,9 +306,22 @@ button:hover {
 .badge {
   background: var(--bg-logo-wrapper);
   font-size: var(--badge-text-size);
+  line-height: 1.4; /* explicit sa kundens radhojd inte styr badgens hojd */
   padding: 2px 6px;
   border-radius: 4px;
   color: var(--text-muted);
+}
+
+/* UI-kansla: ingen textmarkering pa kontroller och etiketter.
+   Policytexten lamnas markerbar sa besokare kan kopiera den. */
+.cookie h2,
+.cookie h5,
+.badge,
+.cookie button,
+.cookie-category-card,
+.toggle-switch {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* ANIMATION LIGHT FOR SCROLLING */
