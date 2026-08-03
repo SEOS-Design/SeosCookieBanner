@@ -96,6 +96,15 @@ const SITE_KEY =
   window.SEOS_SITE_KEY ||
   null;
 
+// Meta-pixel: sätt data-meta-pixel-id på scripttaggen sa laddar bannern
+// pixeln FORST vid samtycke till marknadsforing. Ingen pixelkod ska ligga
+// i sajtens HTML - da kontaktas Facebook redan vid sidladdning.
+const META_PIXEL_ID =
+  (selfScript && selfScript.dataset && selfScript.dataset.metaPixelId) ||
+  window.SEOS_META_PIXEL_ID ||
+  null;
+let metaPixelLoaded = false;
+
 // Språk: sätt window.SEOS_COOKIE_LANG = 'sv' på sajten för att styra ENBART bannern.
 // Utan override används sidans <html lang>, annars engelska.
 const pageLang = (window.SEOS_COOKIE_LANG || document.documentElement.lang || '')
@@ -429,13 +438,73 @@ function applyGoogleConsentFromPayload(payload) {
   });
 }
 
+// Skapar Metas ko-funktion UTAN att ladda nagot fran Facebook. Gor att sajtens
+// egen kod kan anropa fbq('track', ...) utan att krascha, aven innan samtycke.
+// Inget natverksanrop sker har.
+function ensureFbqStub() {
+  if (window.fbq) return;
+  const n = (window.fbq = function () {
+    n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+  });
+  if (!window._fbq) window._fbq = n;
+  n.push = n;
+  n.loaded = true;
+  n.version = '2.0';
+  n.queue = [];
+}
+
+// Forst HAR kontaktas Facebook - bara efter samtycke till marknadsforing.
+function loadMetaPixel() {
+  if (!META_PIXEL_ID || metaPixelLoaded) return;
+  metaPixelLoaded = true;
+
+  fbq('init', META_PIXEL_ID);
+  fbq('track', 'PageView');
+
+  const s = document.createElement('script');
+  s.async = true;
+  s.src = 'https://connect.facebook.net/en_US/fbevents.js';
+  document.head.appendChild(s);
+
+  log('[Meta] Pixel laddad efter samtycke:', META_PIXEL_ID);
+}
+
+// Vid aterkallat samtycke racker det inte att sluta spara - redan satta
+// cookies ska bort. Testas pa bade exakt hostname och toppdoman.
+function deleteMetaCookies() {
+  const host = window.location.hostname;
+  const parts = host.split('.');
+  const domains = ['', `; domain=${host}`, `; domain=.${host}`];
+  if (parts.length > 2) domains.push(`; domain=.${parts.slice(-2).join('.')}`);
+
+  ['_fbp', '_fbc'].forEach((name) => {
+    domains.forEach((d) => {
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/${d}`;
+    });
+  });
+  log('[Meta] Cookies rensade');
+}
+
 function applyMetaConsentFromPayload(payload) {
-  if (typeof fbq !== 'function') return; // ingen Meta-pixel på sajten → gör inget
+  // Sajt utan konfigurerad pixel: respektera anda en pixel som sajten lagt in sjalv.
+  if (!META_PIXEL_ID) {
+    if (typeof fbq === 'function') {
+      fbq('consent', payload.marketing ? 'grant' : 'revoke');
+    }
+    return;
+  }
 
-  // Meta = annonsspårning → styrs av vår marketing-kategori
-  fbq('consent', payload.marketing ? 'grant' : 'revoke');
+  ensureFbqStub();
 
-  log('[Meta] Consent updated:', payload.marketing ? 'grant' : 'revoke');
+  if (payload.marketing) {
+    fbq('consent', 'grant');
+    loadMetaPixel();
+  } else {
+    fbq('consent', 'revoke');
+    deleteMetaCookies();
+  }
+
+  log('[Meta] Consent:', payload.marketing ? 'grant' : 'revoke');
 }
 
 function triggerGTMConsentEvent() {
@@ -685,6 +754,11 @@ function loadAndApplySavedConsent() {
 }
 
 function initializeBanner() {
+  // Skapas direkt (utan natverksanrop) sa att sajtens egen kod kan anropa
+  // fbq('track', 'Lead') nar som helst utan att krascha. Sjalva pixeln
+  // laddas forst vid samtycke.
+  if (META_PIXEL_ID) ensureFbqStub();
+
   injectStyles();
   injectBannerHTML();
 
