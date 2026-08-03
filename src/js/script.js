@@ -1,4 +1,10 @@
-const PRODUCTION_API_URL = 'https://seos-cookie-banner-api.vercel.app';
+// Hela bannern korrs i en egen funktion (IIFE) sa att inga variabler hamnar i
+// sidans globala scope. Utan detta kraschar HELA skriptet med SyntaxError om
+// kundens sajt rakar deklarera samma namn - t.ex. 'const t' - eftersom
+// top-level const/let delar scope mellan alla skript pa sidan.
+// Bara de funktioner som bannerns egna onclick-attribut behover exponeras.
+(function () {
+  const PRODUCTION_API_URL = 'https://seos-cookie-banner-api.vercel.app';
 
 const isLocalhost =
   window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -786,8 +792,20 @@ function initializeBanner() {
   }, 50);
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initializeBanner);
-} else {
-  initializeBanner();
-}
+  // Bannerns HTML anvander onclick-attribut, som bara kan na globala funktioner.
+  // Tilldelning till window kan aldrig kasta SyntaxError sa som top-level const gor.
+  window.acceptAll = acceptAll;
+  window.acceptEssential = acceptEssential;
+  window.openSettings = openSettings;
+  window.saveSettings = saveSettings;
+  window.backToBanner = backToBanner;
+  window.toggleCookie = toggleCookie;
+  window.showPolicy = showPolicy;
+  window.closePolicy = closePolicy;
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeBanner);
+  } else {
+    initializeBanner();
+  }
+})();
