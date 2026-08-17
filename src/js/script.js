@@ -464,8 +464,21 @@ function loadMetaPixel() {
   if (!META_PIXEL_ID || metaPixelLoaded) return;
   metaPixelLoaded = true;
 
+  // Sajtens egen kod kan ha hunnit anropa fbq('track', ...) innan samtycket gavs
+  // - de anropen ligger da och vantar i stubbens ko. Metas skript spelar upp kon
+  // i tur och ordning och SLANGER allt som ligger fore 'init', eftersom ingen
+  // pixel finns registrerad an. Darfor plockas kon ut har, init laggs forst, och
+  // de vantande anropen laggs tillbaka efterat.
+  //
+  // Utan det har tappas t.ex. en Lead som fyras vid sidladdning: React hinner
+  // montera fore bannerskriptet, sa anropet ar nastan alltid forst i kon.
+  const pending = window.fbq && window.fbq.queue ? window.fbq.queue.splice(0) : [];
+
   fbq('init', META_PIXEL_ID);
   fbq('track', 'PageView');
+
+  pending.forEach((call) => window.fbq.queue.push(call));
+  if (pending.length) log('[Meta] Koade anrop slappta efter init:', pending.length);
 
   const s = document.createElement('script');
   s.async = true;
@@ -760,11 +773,6 @@ function loadAndApplySavedConsent() {
 }
 
 function initializeBanner() {
-  // Skapas direkt (utan natverksanrop) sa att sajtens egen kod kan anropa
-  // fbq('track', 'Lead') nar som helst utan att krascha. Sjalva pixeln
-  // laddas forst vid samtycke.
-  if (META_PIXEL_ID) ensureFbqStub();
-
   injectStyles();
   injectBannerHTML();
 
@@ -802,6 +810,11 @@ function initializeBanner() {
   window.toggleCookie = toggleCookie;
   window.showPolicy = showPolicy;
   window.closePolicy = closePolicy;
+
+  // Stubben skapas direkt nar skriptet korrs - INTE i initializeBanner, som
+  // vantar pa DOMContentLoaded. Ju tidigare den finns, desto mindre fonster dar
+  // sajtens egen kod kan traffa ett odefinierat fbq. Inget natverksanrop sker har.
+  if (META_PIXEL_ID) ensureFbqStub();
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initializeBanner);
