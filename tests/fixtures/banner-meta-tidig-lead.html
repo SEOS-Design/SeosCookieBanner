@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8" />
+    <title>Testsida — Lead fyras före bannern hunnit ladda pixeln</title>
+    <link rel="stylesheet" href="/src/css/style.css" />
+
+    <!--
+      Speglar tillvaxtstod.se: en inline-stub i <head> som skapar window.fbq
+      utan ett enda natverksanrop, sa att sajtens egen kod kan anropa fbq
+      innan bannerskriptet hunnit kora.
+    -->
+    <script>
+      (function (f) {
+        if (f.fbq) return;
+        var n = (f.fbq = function () {
+          n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+        });
+        if (!f._fbq) f._fbq = n;
+        n.push = n;
+        n.loaded = true;
+        n.version = '2.0';
+        n.queue = [];
+      })(window);
+    </script>
+  </head>
+  <body>
+    <h1>Testsida</h1>
+    <p>Motsvarar returen fran Salesforce till /?skickad=1.</p>
+
+    <!--
+      Det kritiska: sajtens komponent monterar och fyrar Lead INNAN bannern
+      laddat pixeln. Anropet hamnar da i stubbens ko. Metas skript spelar upp
+      kon i ordning och slanger allt som ligger fore 'init' - darfor maste
+      bannern lagga init forst nar den slapper kon.
+    -->
+    <script>
+      window.fbq('track', 'Lead');
+    </script>
+
+    <script src="/src/js/script.js" data-meta-pixel-id="1234567890123456" async></script>
+  </body>
+</html>

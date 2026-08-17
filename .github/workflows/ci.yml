@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Avbryt tidigare korningar pa samma branch nar en ny push kommer.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Playwright
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Installera Playwright-browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Kor tester
+        # Testerna kor mot en lokal statisk server och blockerar Facebook,
+        # sa CI kontaktar varken produktions-API:t eller nagon tredje part.
+        run: npm test
+        env:
+          CI: "true"
+
+      - name: Ladda upp rapport vid fel
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
