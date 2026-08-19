@@ -24,6 +24,19 @@ jobs:
 
       - run: npm ci
 
+      # Den byggda filen src/v1/banner.js ar committad i repot, eftersom Vercel
+      # serverar src/ statiskt utan byggsteg. Risken med det ar att nagon andrar
+      # kallkoden men glommer bygga om - da ligger gammal kod kvar pa CDN:et
+      # medan diffen ser korrekt ut. Har byggs den om och jamfors: skiljer den
+      # sig ett enda tecken, felar bygget.
+      - name: Kontrollera att den byggda filen ar aktuell
+        run: |
+          npm run build
+          if ! git diff --exit-code -- src/v1/banner.js; then
+            echo "::error::src/v1/banner.js matchar inte kallkoden. Kor 'npm run build' och committa resultatet."
+            exit 1
+          fi
+
       - name: Installera Playwright-browser
         run: npx playwright install --with-deps chromium
 

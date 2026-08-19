@@ -1,0 +1,4 @@
+# Den byggda filen jamfors byte for byte i CI (kontrollen mot att artefakten
+# driftar fran kallkoden). Utan detta checkas den ut med CRLF pa Windows och
+# med LF i CI, och jamforelsen slutar betyda samma sak pa de tva maskinerna.
+src/v1/banner.js text eol=lf

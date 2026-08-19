@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "build": "node build.js",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "test:report": "playwright show-report"
@@ -13,6 +14,8 @@
   "description": "",
   "devDependencies": {
     "@playwright/test": "^1.62.1",
+    "dompurify": "^3.4.14",
+    "esbuild": "^0.28.2",
     "prettier": "^3.6.2"
   }
 }

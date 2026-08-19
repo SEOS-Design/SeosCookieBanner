@@ -1,0 +1,28 @@
+# Bevakar bannerns beroenden och oppnar en pull request nar en ny version finns.
+#
+# Viktigast av dem: DOMPurify. Den ligger inbakad i src/v1/banner.js och
+# uppdateras darfor inte langre av sig sjalv. Ett sakerhetshal i den ar ett
+# sakerhetshal i bannern, pa varje kundsajt.
+#
+# OBS: Dependabots PR felar i CI med flit. Den andrar bara package.json och
+# package-lock.json, inte den byggda filen - och da slar driftkontrollen till.
+# Kor 'npm run build' och committa resultatet till PR-grenen. Se driftmanualen.
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: 'deps'
+
+  # Halller actions/checkout, setup-node m.fl. aktuella. Sallan, de rar sig langsamt.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: 'ci'

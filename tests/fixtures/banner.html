@@ -3,12 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <title>Testsida — banner utan Meta-pixel</title>
-    <link rel="stylesheet" href="/src/css/style.css" />
+    <!--
+      Ingen <link> till stilmallen: den ligger inbakad i den byggda filen.
+      Speglar seosdesign.se och brevenshus.se, dar bannern injicerar sin egen CSS.
+    -->
   </head>
   <body>
     <h1>Testsida</h1>
     <p>Bannern utan konfigurerad pixel. Motsvarar en kund utan Meta.</p>
 
-    <script src="/src/js/script.js" async></script>
+    <script src="/src/v1/banner.js" async></script>
   </body>
 </html>

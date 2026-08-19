@@ -56,6 +56,71 @@ test.describe('Bannern', () => {
   });
 });
 
+// Sedan bannern byggs till en fil laddas stilmallen och DOMPurify inte langre
+// vid korning. Bada bytena ar tysta om de gar sonder: en tom stilmall ger en
+// banner som fortfarande "syns" for ett test, och ett trasigt DOMPurify marks
+// forst nar nagon oppnar policyn. Darfor kontrolleras de har.
+test.describe('Allt ligger i en fil', () => {
+  test('stilmallen ar inbakad, inte hamtad', async ({ page }) => {
+    const externa = [];
+    page.on('request', (r) => {
+      const url = r.url();
+      if (!url.startsWith('http://127.0.0.1:4173/')) externa.push(url);
+    });
+
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    // Stilmallen ska ligga som <style> med verkligt innehall - inte som <link>.
+    const css = await page.evaluate(() => {
+      const el = document.getElementById('seos-cookie-css');
+      return { tagg: el && el.tagName, tecken: el ? el.textContent.length : 0 };
+    });
+    expect(css.tagg).toBe('STYLE');
+    expect(css.tecken).toBeGreaterThan(1000);
+
+    // Stilarna ska faktiskt tillampas, inte bara finnas i dokumentet.
+    const position = await page.evaluate(
+      () => getComputedStyle(document.querySelector('.cookie-section')).position,
+    );
+    expect(position).toBe('fixed');
+
+    // Ingenting far hamtas fran en tredje part - varken unpkg eller CDN:et.
+    expect(externa).toEqual([]);
+  });
+
+  test('policyn visas och saneras av inbakad DOMPurify', async ({ page }) => {
+    // DOMPurify hamtades tidigare fran unpkg vid forsta oppningen av policyn.
+    // Ligger den inte langre med i bundlen kastar det har testet.
+    await page.route('**/consent/policy/latest*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          content:
+            '<h3>Testpolicy</h3><script>window.__xss = true;<\/script>' +
+            '<a href="https://exempel.se" target="_blank" rel="noopener">Lank</a>',
+        }),
+      }),
+    );
+
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    await page.getByRole('link', { name: /cookiepolicy/i }).click();
+
+    await expect(page.locator('#cookie-policy')).toBeVisible();
+    await expect(page.locator('#policy-content-area')).toContainText('Testpolicy');
+
+    // Skriptet i policytexten ska ha saneras bort, inte kort.
+    expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+    expect(await page.locator('#policy-content-area').innerHTML()).not.toContain('<script');
+
+    // target/rel star med i ADD_ATTR och ska overleva saneringen.
+    await expect(page.locator('#policy-content-area a')).toHaveAttribute('target', '_blank');
+  });
+});
+
 test.describe('Meta-pixeln laddas inte utan samtycke', () => {
   test('noll anrop till Facebook innan besokaren valt', async ({ page }) => {
     const anrop = spionaPaFacebook(page);
