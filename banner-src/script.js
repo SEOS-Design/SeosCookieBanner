@@ -7,16 +7,19 @@
 // filen committas och ska ga att granska i en diff, och da ska bibliotekets
 // ~29 kB ligga pa en rad i stallet for att dranka var egen kod.
 //
-// CSS:en lases fran src/css/style.css - samma fil som den gamla bannern
-// fortfarande hamtar som <link>. En enda stilmall under overgangen, med flit.
+// Stilmallen ligger i banner-src/ av samma skal som den har filen: den gamla
+// bannern hamtar src/css/style.css som <link>, och tillvaxtstod.se gor det
+// fortfarande. Shadow DOM kraver :host dar den gamla kraver :root - samma fil
+// kan inte vara bada. Den frusna kopian i src/css/ ror vi inte forran alla
+// sajter bytt scripttagg.
 import DOMPurify from 'dompurify/dist/purify.min.js';
-import bannerCss from '../src/css/style.css';
+import bannerCss from './style.css';
 
 // Hela bannern korrs i en egen funktion (IIFE) sa att inga variabler hamnar i
 // sidans globala scope. Utan detta kraschar HELA skriptet med SyntaxError om
 // kundens sajt rakar deklarera samma namn - t.ex. 'const t' - eftersom
 // top-level const/let delar scope mellan alla skript pa sidan.
-// Bara de funktioner som bannerns egna onclick-attribut behover exponeras.
+// Nagra funktioner ligger pa window som publikt API for kundsajter.
 (function () {
   const PRODUCTION_API_URL = 'https://seos-cookie-banner-api.vercel.app';
 
@@ -33,6 +36,22 @@ const LONG_LIVED_COOKIE_DAYS = 30;
 const BANNER_ID = 'cookie-banner';
 const SETTINGS_ID = 'cookie-settings';
 const POLICY_ID = 'cookie-policy';
+
+// Vardelementets id. Behalls fran tiden fore Shadow DOM med flit: kunder har
+// designblock som satter CSS-variabler pa just det har id:t, och variabler arvs
+// in genom skuggan. Byter vi namn slutar deras formgivning fungera.
+const HOST_ID = 'cookie-sectionId';
+
+// Bannerns skuggrot. All bannerns HTML och CSS ligger harinne, avskarmad fran
+// kundens sida: deras CSS nar inte in, var nar inte ut.
+let shadow = null;
+
+// Alla uppslag av bannerns egna element gar mot skuggan, aldrig mot document.
+// Element pa kundens sida (t.ex. #open-cookie-settings) slas fortfarande upp
+// med document - de ligger utanfor skuggan.
+function el(id) {
+  return shadow ? shadow.getElementById(id) : null;
+}
 
 // Sätt till true för utförlig konsolloggning vid felsökning. Tyst i produktion.
 const DEBUG = false;
@@ -136,20 +155,8 @@ const t = translations[pageLang] || translations['en'];
 // HTML INJECTION for easy plug in
 //========================================================================
 
-// Stilmallen ligger inbakad i den byggda filen och skrivs in som ett
-// <style>-element. Tidigare hamtades den som en separat <link> fran CDN:et.
-// Elementet laggs sist i <head>, precis som <link>-taggen gjorde, sa en kund
-// som overstyr CSS-variablerna i sitt eget huvud paverkas inte av bytet.
-function injectStyles() {
-  if (document.getElementById('seos-cookie-css')) return;
-  const style = document.createElement('style');
-  style.id = 'seos-cookie-css';
-  style.textContent = bannerCss;
-  document.head.appendChild(style);
-}
-
 function injectBannerHTML() {
-  if (document.getElementById('cookie-sectionId')) return;
+  if (document.getElementById(HOST_ID)) return;
 
   const cookieIconSVG = `
       <svg class="cookie-icon-svg" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2"
@@ -165,8 +172,11 @@ function injectBannerHTML() {
   d="M15 22V22.01" />
       </svg>`;
 
+  // Inga inline-onclick langre. Knapparna markeras med data-handling och kopplas
+  // med addEventListener nedan. Battre for tillganglighet (C8), och en
+  // forutsattning for att kunna sluta lagga funktioner pa window.
   const bannerHTML = `
-  <section class="cookie-section" id="cookie-sectionId">
+  <section class="cookie-section">
 
     <div class="cookie" id="${BANNER_ID}" style="display: none;">
       <div class="cookie-header">
@@ -176,11 +186,11 @@ function injectBannerHTML() {
       <div class="cookie-content">
         <div class="cookie-body">
           <p>${t.bannerBody}
-          <a class="policy-link" href="#" onclick="showPolicy(); return false;"> ${t.policyLink}</a></p>
+          <a class="policy-link" href="#" data-handling="visaPolicy"> ${t.policyLink}</a></p>
         </div>
       </div>
       <div class="cookie-buttons">
-        <button class="btn-customize" onclick="openSettings()">${t.customize}
+        <button class="btn-customize" data-handling="oppnaInstallningar">${t.customize}
           <svg class="btn-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round"
   stroke-linejoin="round">
             <path d="M9.33334 11.3333H3.33334" /><path d="M12.6667 4.66666H6.66666" />
@@ -191,8 +201,8 @@ function injectBannerHTML() {
           </svg>
         </button>
         <div class="main-actions">
-          <button class="btn-reject" onclick="acceptEssential()">${t.necessaryOnly}</button>
-          <button class="btn-save" onclick="acceptAll()">${t.acceptAll}</button>
+          <button class="btn-reject" data-handling="endastNodvandiga">${t.necessaryOnly}</button>
+          <button class="btn-save" data-handling="acceptaAlla">${t.acceptAll}</button>
         </div>
       </div>
     </div>
@@ -214,21 +224,21 @@ function injectBannerHTML() {
             </div>
             <div class="toggle-switch always-active"><div class="toggle-slider"></div></div>
           </div>
-          <div class="cookie-category-card" onclick="toggleCookie(this.querySelector('#performance-toggle'))">
+          <div class="cookie-category-card" data-handling="vaxla" data-reglage="performance-toggle">
             <div class="category-text-wrapper">
               <h5>${t.analyticsLabel}</h5>
               <p>${t.analyticsDesc}</p>
             </div>
             <div class="toggle-switch" id="performance-toggle"><div class="toggle-slider"></div></div>
           </div>
-          <div class="cookie-category-card" onclick="toggleCookie(this.querySelector('#functional-toggle'))">
+          <div class="cookie-category-card" data-handling="vaxla" data-reglage="functional-toggle">
             <div class="category-text-wrapper">
               <h5>${t.functionalLabel}</h5>
               <p>${t.functionalDesc}</p>
             </div>
             <div class="toggle-switch" id="functional-toggle"><div class="toggle-slider"></div></div>
           </div>
-          <div class="cookie-category-card" onclick="toggleCookie(this.querySelector('#marketing-toggle'))">
+          <div class="cookie-category-card" data-handling="vaxla" data-reglage="marketing-toggle">
             <div class="category-text-wrapper">
               <h5>${t.marketingLabel}</h5>
               <p>${t.marketingDesc}</p>
@@ -239,10 +249,10 @@ function injectBannerHTML() {
       </div>
       <div class="scroll-shadow" id="bottom-shadow"></div>
       <div class="cookie-buttons">
-        <button class="btn-back" onclick="backToBanner()">${t.returnBtn}</button>
+        <button class="btn-back" data-handling="tillbaka">${t.returnBtn}</button>
         <div class="main-actions">
-          <button class="btn-reject" onclick="acceptEssential()">${t.necessaryOnly}</button>
-          <button class="btn-save" onclick="saveSettings()">${t.savePreferences}</button>
+          <button class="btn-reject" data-handling="endastNodvandiga">${t.necessaryOnly}</button>
+          <button class="btn-save" data-handling="sparaInstallningar">${t.savePreferences}</button>
         </div>
       </div>
     </div>
@@ -257,14 +267,56 @@ function injectBannerHTML() {
       </div>
       <div class="cookie-buttons">
         <div class="main-actions">
-          <button class="btn-save" onclick="closePolicy()">${t.close}</button>
+          <button class="btn-save" data-handling="stangPolicy">${t.close}</button>
         </div>
       </div>
     </div>
 
   </section>`;
 
-  document.body.insertAdjacentHTML('beforeend', bannerHTML);
+  // Vardelementet ligger kvar i kundens sida - det ar dar deras CSS-variabler
+  // satts. Allt innehall hamnar innanfor skuggan.
+  const host = document.createElement('div');
+  host.id = HOST_ID;
+  document.body.appendChild(host);
+
+  shadow = host.attachShadow({ mode: 'open' });
+
+  const style = document.createElement('style');
+  style.id = 'seos-cookie-css';
+  style.textContent = bannerCss;
+  shadow.appendChild(style);
+
+  // Ett template i stallet for shadow.innerHTML: annars skrivs stilmallen over.
+  const mall = document.createElement('template');
+  mall.innerHTML = bannerHTML;
+  shadow.appendChild(mall.content);
+
+  kopplaHandelser();
+}
+
+// En enda lyssnare pa skuggroten i stallet for atta inline-onclick. Klick
+// bubblar upp hit, och data-handling avgor vad som ska kora.
+function kopplaHandelser() {
+  const handlingar = {
+    visaPolicy: showPolicy,
+    oppnaInstallningar: openSettings,
+    endastNodvandiga: acceptEssential,
+    acceptaAlla: acceptAll,
+    sparaInstallningar: saveSettings,
+    tillbaka: backToBanner,
+    stangPolicy: closePolicy,
+    vaxla: (element) => toggleCookie(el(element.dataset.reglage)),
+  };
+
+  shadow.addEventListener('click', (handelse) => {
+    const traff = handelse.target.closest('[data-handling]');
+    if (!traff) return;
+    const kor = handlingar[traff.dataset.handling];
+    if (!kor) return;
+    handelse.preventDefault();
+    kor(traff);
+  });
 }
 
 //========================================================================
@@ -336,24 +388,24 @@ function getOrCreateClientId() {
 //========================================================================
 
 function hideAllBanners() {
-  document.getElementById(BANNER_ID).style.display = 'none';
-  document.getElementById(SETTINGS_ID).style.display = 'none';
-  document.getElementById(POLICY_ID).style.display = 'none';
+  el(BANNER_ID).style.display = 'none';
+  el(SETTINGS_ID).style.display = 'none';
+  el(POLICY_ID).style.display = 'none';
 }
 
 function showCookieBanner() {
   hideAllBanners();
-  document.getElementById(BANNER_ID).style.display = 'flex';
+  el(BANNER_ID).style.display = 'flex';
 }
 
 function showSettingsModal() {
   hideAllBanners();
-  document.getElementById(SETTINGS_ID).style.display = 'flex';
+  el(SETTINGS_ID).style.display = 'flex';
 }
 
 function showPolicyModal() {
   hideAllBanners();
-  document.getElementById(POLICY_ID).style.display = 'flex';
+  el(POLICY_ID).style.display = 'flex';
 }
 
 //========================================================================
@@ -586,7 +638,7 @@ function openSettings() {
   }
 
   const applyToggleState = (id, isActive) => {
-    const element = document.getElementById(id);
+    const element = el(id);
     if (element) {
       element.classList.toggle('active', isActive);
     }
@@ -604,8 +656,8 @@ function openSettings() {
 }
 
 function checkScrollStatus() {
-  const scrollArea = document.getElementById('scroll-area');
-  const bottomShadow = document.getElementById('bottom-shadow');
+  const scrollArea = el('scroll-area');
+  const bottomShadow = el('bottom-shadow');
 
   if (scrollArea && bottomShadow) {
     const hasScroll = scrollArea.scrollHeight > scrollArea.clientHeight;
@@ -628,11 +680,11 @@ function saveSettings() {
   const clientId = getOrCreateClientId();
 
   const analytics =
-    document.getElementById('performance-toggle')?.classList.contains('active') || false;
+    el('performance-toggle')?.classList.contains('active') || false;
   const marketing =
-    document.getElementById('marketing-toggle')?.classList.contains('active') || false;
+    el('marketing-toggle')?.classList.contains('active') || false;
   const functional =
-    document.getElementById('functional-toggle')?.classList.contains('active') || false;
+    el('functional-toggle')?.classList.contains('active') || false;
 
   const payload = {
     necessary: true,
@@ -693,8 +745,8 @@ async function showPolicy() {
 
   showPolicyModal();
 
-  const contentArea = document.getElementById('policy-content-area');
-  const titleArea = document.getElementById('policy-version-title');
+  const contentArea = el('policy-content-area');
+  const titleArea = el('policy-version-title');
 
   contentArea.innerHTML = `<p>${t.policyLoading}</p>`;
 
@@ -775,9 +827,9 @@ function loadAndApplySavedConsent() {
 }
 
 function initializeBanner() {
-  injectStyles();
   injectBannerHTML();
 
+  // Ligger pa KUNDENS sida, utanfor skuggan - darfor document och inte el().
   const webflowLink = document.getElementById('open-cookie-settings');
   if (webflowLink) {
     webflowLink.addEventListener('click', (e) => {
@@ -802,8 +854,10 @@ function initializeBanner() {
   }, 50);
 }
 
-  // Bannerns HTML anvander onclick-attribut, som bara kan na globala funktioner.
-  // Tilldelning till window kan aldrig kasta SyntaxError sa som top-level const gor.
+  // Bannern behover inte langre dessa for sin egen skull - klicken kopplas med
+  // addEventListener sedan Shadow DOM infordes. De ligger kvar som publikt API:
+  // en kundsajt kan ha en egen knapp som anropar window.openSettings(), och att
+  // ta bort dem skulle brytas tyst hos nagon vi inte vet om.
   window.acceptAll = acceptAll;
   window.acceptEssential = acceptEssential;
   window.openSettings = openSettings;

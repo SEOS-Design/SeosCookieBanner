@@ -4,6 +4,7 @@ const SIDA = {
   utanPixel: '/tests/fixtures/banner.html',
   medPixel: '/tests/fixtures/banner-meta.html',
   tidigLead: '/tests/fixtures/banner-meta-tidig-lead.html',
+  kundCss: '/tests/fixtures/banner-kundcss.html',
 };
 
 /** Registrerar varje forsok att na Facebook, aven de vi blockerar. */
@@ -21,6 +22,17 @@ function spionaPaFacebook(page) {
  */
 async function blockeraFacebook(page) {
   await page.route('**/connect.facebook.net/**', (route) => route.abort());
+}
+
+/**
+ * Bannern ligger i en shadow root sedan C3. Playwrights egna vayare gar igenom
+ * skuggan av sig sjalva, men page.evaluate gor det inte - dar behovs den har.
+ * Injiceras i sidan sa att testerna kan skriva skugga() rakt av.
+ */
+async function medSkugga(page) {
+  await page.addInitScript(() => {
+    window.skugga = () => document.getElementById('cookie-sectionId').shadowRoot;
+  });
 }
 
 const knapp = {
@@ -62,6 +74,7 @@ test.describe('Bannern', () => {
 // forst nar nagon oppnar policyn. Darfor kontrolleras de har.
 test.describe('Allt ligger i en fil', () => {
   test('stilmallen ar inbakad, inte hamtad', async ({ page }) => {
+    await medSkugga(page);
     const externa = [];
     page.on('request', (r) => {
       const url = r.url();
@@ -72,8 +85,9 @@ test.describe('Allt ligger i en fil', () => {
     await expect(page.locator('#cookie-banner')).toBeVisible();
 
     // Stilmallen ska ligga som <style> med verkligt innehall - inte som <link>.
+    // Ligger numera INUTI skuggan, inte i dokumentets <head>.
     const css = await page.evaluate(() => {
-      const el = document.getElementById('seos-cookie-css');
+      const el = skugga().getElementById('seos-cookie-css');
       return { tagg: el && el.tagName, tecken: el ? el.textContent.length : 0 };
     });
     expect(css.tagg).toBe('STYLE');
@@ -81,7 +95,7 @@ test.describe('Allt ligger i en fil', () => {
 
     // Stilarna ska faktiskt tillampas, inte bara finnas i dokumentet.
     const position = await page.evaluate(
-      () => getComputedStyle(document.querySelector('.cookie-section')).position,
+      () => getComputedStyle(skugga().querySelector('.cookie-section')).position,
     );
     expect(position).toBe('fixed');
 
@@ -118,6 +132,156 @@ test.describe('Allt ligger i en fil', () => {
 
     // target/rel star med i ADD_ATTR och ska overleva saneringen.
     await expect(page.locator('#policy-content-area a')).toHaveAttribute('target', '_blank');
+  });
+});
+
+// C3. Kundens CSS har forstort bannern tva ganger i produktion - typsnittet och
+// badge-radhojden. Med Shadow DOM ska det inte kunna handa igen, och lika
+// viktigt: var CSS ska sluta paverka kundens sida.
+test.describe('Isolering fran kundens CSS', () => {
+  test('kundens globala regler naar inte in i bannern', async ({ page }) => {
+    await medSkugga(page);
+    await page.goto(SIDA.kundCss);
+
+    // Fixturen doljer .cookie och nollar .cookie-section med !important.
+    // Traffade reglerna in vore bannern osynlig.
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    const s = await page.evaluate(() => {
+      const banner = skugga().getElementById('cookie-banner');
+      const knapp = skugga().querySelector('.btn-save');
+      const sektion = skugga().querySelector('.cookie-section');
+      const bs = getComputedStyle(banner);
+      const ks = getComputedStyle(knapp);
+      return {
+        font: getComputedStyle(sektion).fontFamily,
+        position: getComputedStyle(sektion).position,
+        knappBg: ks.backgroundColor,
+        knappRadie: ks.borderRadius,
+        rubrikFarg: getComputedStyle(banner.querySelector('h2')).color,
+        bannerVisas: bs.display,
+      };
+    });
+
+    expect(s.font).not.toContain('Comic Sans');
+    expect(s.position).toBe('fixed');
+    expect(s.knappBg).not.toBe('rgb(255, 0, 255)'); // magenta
+    expect(s.knappRadie).not.toBe('0px');
+    expect(s.rubrikFarg).not.toBe('rgb(255, 0, 0)'); // rott
+    expect(s.bannerVisas).toBe('flex');
+  });
+
+  test('kundens CSS-variabler pa vardelementet slaar fortfarande igenom', async ({ page }) => {
+    // Skyddar brevenshus uppsattning: deras formgivning ar ~30 variabler satta
+    // pa #cookie-sectionId. Slutar de arvas in genom skuggan tappar de sin design.
+    await medSkugga(page);
+    await page.goto(SIDA.kundCss);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    const s = await page.evaluate(() => {
+      const banner = skugga().getElementById('cookie-banner');
+      return {
+        bakgrund: getComputedStyle(banner).backgroundColor,
+        // Innehallsbredden, inte yttermattet: bannern har 1px ram pa varje sida.
+        bredd: getComputedStyle(banner).width,
+        knappText: getComputedStyle(skugga().querySelector('.btn-save')).color,
+      };
+    });
+
+    expect(s.bakgrund).toBe('rgb(239, 225, 201)'); // --bg-main
+    expect(s.bredd).toBe('640px'); // --banner-width
+    expect(s.knappText).toBe('rgb(245, 240, 232)'); // --btn-accent-text
+  });
+
+  // Hovringen var otestad, och da hamnade de nya variablerna av misstag i ett
+  // oanvant temablock i stallet for i :host. Bannern sag ratt ut i vilolage och
+  // felet syntes forst vid hovring - alltsa exakt det ett test ska fanga.
+  test('hovring anvander variablerna, med och utan kundens overstyrning', async ({ page }) => {
+    await medSkugga(page);
+    // Knapparna har transition: 0.2s, sa filtret maste hinna landa innan det
+    // mats - annars fangas ett mellanvarde som brightness(1.014).
+    const las = (sel) =>
+      expect
+        .poll(() =>
+          page.evaluate((s) => getComputedStyle(skugga().querySelector(s)).filter, sel),
+        )
+        .toBe;
+
+    // Standard: bada knapparna ljusnar vid hovring.
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    await page.locator('#cookie-banner .btn-save').hover();
+    await las('#cookie-banner .btn-save')('brightness(1.2)');
+    expect(
+      await page.evaluate(() =>
+        skugga().querySelector('#cookie-banner .btn-save').matches(':hover'),
+      ),
+    ).toBe(true);
+
+    // Kundens overstyrning: Anpassa slutar ljusna och far egen bakgrund,
+    // medan Acceptera behaller standardbeteendet. Speglar brevenshus.
+    await page.goto(SIDA.kundCss);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    await page.locator('#cookie-banner .btn-customize').hover();
+    await las('#cookie-banner .btn-customize')('none');
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            getComputedStyle(skugga().querySelector('#cookie-banner .btn-customize'))
+              .backgroundColor,
+        ),
+      )
+      .toBe('rgba(89, 74, 60, 0.12)');
+
+    await page.locator('#cookie-banner .btn-save').hover();
+    await las('#cookie-banner .btn-save')('brightness(1.2)');
+  });
+
+  // Kategorikorten kopplades om fran inline-onclick till data-reglage i C3.
+  // Gar den kopplingen sonder kan besokaren inte valja per kategori, och
+  // "Spara installningar" sparar tyst fel svar - utan nagot felmeddelande.
+  test('kategorireglagen gaar att vaxla och sparas', async ({ page }) => {
+    await medSkugga(page);
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    await page.locator('#cookie-banner .btn-customize').click();
+    await expect(page.locator('#cookie-settings')).toBeVisible();
+
+    const aktiv = (id) =>
+      page.evaluate((i) => skugga().getElementById(i).classList.contains('active'), id);
+
+    expect(await aktiv('performance-toggle')).toBe(false);
+
+    // Klicket ligger pa kortet, inte pa reglaget - hela raden ar klickbar.
+    await page.locator('#cookie-settings .cookie-category-card').nth(1).click();
+    expect(await aktiv('performance-toggle')).toBe(true);
+    expect(await aktiv('marketing-toggle')).toBe(false);
+
+    await page.locator('#cookie-settings .btn-save').click();
+    await expect(page.locator('#cookie-settings')).toBeHidden();
+
+    const cookies = await page.evaluate(() => document.cookie);
+    expect(cookies).toContain('consent_status=custom');
+    expect(decodeURIComponent(cookies)).toContain('"analytics":true');
+    expect(decodeURIComponent(cookies)).toContain('"marketing":false');
+  });
+
+  test('bannerns CSS paverkar inte kundens egna knappar', async ({ page }) => {
+    // Fore C3 lag var stilmall i kundens <head> med en naken button-regel, och
+    // formade om varje knapp pa sajten. Uppmatt pa seosdesign.se: 21 skillnader.
+    await page.goto(SIDA.kundCss);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    const s = await page.evaluate(() => {
+      const k = getComputedStyle(document.querySelector('.kundknapp'));
+      return { display: k.display, padding: k.padding, gap: k.gap };
+    });
+
+    expect(s.display).not.toBe('inline-flex'); // var button-regel satter denna
+    expect(s.padding).toBe('40px'); // kundens egen regel, orord
+    expect(s.gap).toBe('normal'); // var regel satter var(--space-xs)
   });
 });
 

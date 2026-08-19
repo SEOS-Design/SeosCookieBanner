@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8" />
+    <title>Testsida — aggressiv kund-CSS</title>
+
+    <!--
+      Regler av precis det slag som forstort bannern i verkligheten: typsnittet
+      och badge-radhojden pa kundsajter. Alla med !important, for att visa att
+      inte ens det tar sig in i skuggan.
+    -->
+    <style>
+      * {
+        font-family: 'Comic Sans MS', cursive !important;
+      }
+      button {
+        background: magenta !important;
+        color: lime !important;
+        border-radius: 0 !important;
+        padding: 40px !important;
+      }
+      h2,
+      h5,
+      p {
+        color: red !important;
+      }
+      .cookie {
+        display: none !important;
+      }
+      .cookie-section {
+        position: static !important;
+      }
+    </style>
+
+    <!--
+      Kundens egen formgivning, i samma form som brevenshus anvander: variabler
+      satta pa bannerns ytterelement. Den HAR vagen ska fortsatta fungera - det
+      ar den enda som slapps in.
+    -->
+    <style>
+      #cookie-sectionId {
+        --bg-main: #efe1c9;
+        --banner-width: 640px;
+        --btn-accent-text: #f5f0e8;
+        --btn-secondary-hover-bg: rgba(89, 74, 60, 0.12);
+        --btn-secondary-hover-filter: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Testsida</h1>
+    <p>Bannern ska overleva reglerna ovan, och kundens knapp ska lamnas ifred.</p>
+
+    <button class="kundknapp">Kundens egen knapp</button>
+
+    <script src="/src/v1/banner.js" async></script>
+  </body>
+</html>

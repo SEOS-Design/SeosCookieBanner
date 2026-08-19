@@ -1,6 +1,6 @@
 // Bygger bannern till EN fil.
 //
-// banner-src/script.js + src/css/style.css + DOMPurify  ->  src/v1/banner.js
+// banner-src/script.js + banner-src/style.css + DOMPurify  ->  src/v1/banner.js
 //
 // Kundens scripttagg blir darmed en enda rad, och det externa beroendet till
 // unpkg.com forsvinner helt.
@@ -43,7 +43,7 @@ const dompurifyVersion = JSON.parse(
 const huvud = `/*!
  * SEOS Cookiebanner - BYGGD FIL. Redigera inte har, andringar skrivs over.
  *
- * Kalla:  banner-src/script.js + src/css/style.css
+ * Kalla:  banner-src/script.js + banner-src/style.css
  * Bygg:   npm run build
  * Ingar:  DOMPurify ${dompurifyVersion} (https://github.com/cure53/DOMPurify)
  */`;

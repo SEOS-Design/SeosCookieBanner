@@ -1,0 +1,526 @@
+/* Bannern ligger i en shadow root. :host ar dess ytterelement, som ligger kvar
+   i kundens sida med id="cookie-sectionId". Kundens egna varden satta pa det
+   id:t vinner over dessa standardvarden och arvs in genom skuggan - darfor
+   fortsatter befintliga designblock att fungera utan andring.
+
+   display: contents gor att vardelementet inte tar plats i kundens layout. */
+:host {
+  display: contents;
+
+  /* Color scheme dark mode */
+  --bg-main: #0e0e0e;
+  --bg-muted: rgba(255, 255, 255, 0.1);
+  --text-main: #ffffff;
+  --text-muted: #9ca3af;
+  --accent-color: #686868;
+  --accent-hover: #6366f1;
+  --bg-dark-btn: #111827;
+  --border-color: rgba(255, 255, 255, 0.2);
+  --btn-border: rgba(255, 255, 255, 0.5);
+  --logo-color: #ffffff;
+  --bg-logo-wrapper: #686868;
+  --bg-customize-btn: #1d1d1d;
+
+  /* Knapptext och hovring. Egna variabler eftersom en kund inte langre kan na
+     in i skuggan med en vanlig CSS-regel - variablerna ar vagen in i stallet.
+     Standardvardena ger exakt samma utseende som fore Shadow DOM. */
+  --btn-accent-text: var(--text-main);
+  --btn-hover-filter: brightness(1.2);
+  /* Samma farg som knappens vanliga bakgrund = ingen forandring vid hovring,
+     precis som forut. Effekten kom fran filtret, inte fran bakgrunden. */
+  --btn-secondary-hover-bg: var(--bg-customize-btn);
+  --btn-secondary-hover-filter: var(--btn-hover-filter);
+
+  --toggle-switch-bg: #374151;
+  --scroll-gradient: radial-gradient(
+    ellipse at bottom,
+    rgba(255, 255, 255, 0.2) 0%,
+    rgba(17, 24, 39, 0.6) 40%,
+    transparent 80%
+  );
+  --icon-path: url('/src/Cookie Icon Wrapper.svg');
+
+  /* Typography */
+  --main-font: 'Mona Sans Narrow', sans-serif;
+  --header-text-size: clamp(1.125rem, 0.9946rem + 0.6522vw, 1.5rem);
+  --body-text-size: clamp(0.875rem, 0.788rem + 0.4348vw, 1.125rem);
+  --badge-text-size: 10px;
+  --small-text-size: 12px;
+
+  /* Layout and distance */
+  --icon-container-size: clamp(2.5rem, 2.3913rem + 0.5435vw, 3rem);
+  --banner-width: 850px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  /* Spacing scale from 320px to 1240px */
+  --space-xs: clamp(0.5rem, 0.4565rem + 0.2174vw, 0.625rem); /* 8px -> 10px */
+  --space-sm: clamp(0.75rem, 0.663rem + 0.4348vw, 1rem); /* 12px -> 16px */
+  --space-md: clamp(1rem, 0.8261rem + 0.8696vw, 1.5rem); /* 16px -> 24px */
+  --space-lg: clamp(1.5rem, 1.3261rem + 0.8696vw, 2rem); /* 24px -> 32px */
+  --space-xl: clamp(2rem, 1.6522rem + 1.7391vw, 3rem);
+}
+
+.light-theme {
+  /* Background and text */
+  --bg-main: #f1f3f1;
+  --bg-muted: rgba(0, 0, 0, 0.05);
+  --text-main: #111827;
+  --text-muted: #4b5563;
+  /* Accent and logo */
+  --accent-color: #66c966;
+  --logo-color: #4a9e4a;
+  --bg-logo-wrapper: #ffffff;
+  /* Buttons and borders */
+  --border-color: #d1d5db;
+  --btn-border: #d1d5db;
+  --bg-customize-btn: #ffffff;
+  /* Toggles */
+  --toggle-switch-bg: #d1d5db;
+  --toggle-circle: #ffffff;
+  /* Scroll shadow */
+  --scroll-gradient: radial-gradient(
+    ellipse at bottom,
+    rgba(0, 0, 0, 0.09) 0%,
+    rgba(0, 0, 0, 0.04) 40%,
+    transparent 80%
+  );
+}
+
+.dark-bg {
+  background-color: #222831;
+}
+/*  CONTAINER - BASIC STRUCTURE */
+.cookie-section {
+  position: fixed;
+  inset: 0;
+  padding: var(--space-lg);
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  z-index: 9999;
+  font-family: var(--main-font);
+  pointer-events: none;
+}
+
+/* THE CONTENTS AND BUILDING BLOCK */
+.cookie {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  width: min(var(--banner-width), calc(100vw - var(--space-xl)));
+  max-width: calc(100vw - var(--space-xl));
+  max-height: calc(100svh - var(--space-xl));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  pointer-events: auto;
+  position: relative;
+  margin-left: 0;
+}
+
+/* HEADER */
+.cookie-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-lg) var(--space-lg) 0;
+  flex-shrink: 0;
+}
+
+/* CONTENT AND SCROLL AREA */
+.cookie-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /*Hides scrollbar on firefox*/
+  -ms-overflow-style: none; /* Hides scrollbar on Edge*/
+}
+
+/* Hides scrollbar on Chrome and Safari*/
+.cookie-content::-webkit-scrollbar {
+  display: none;
+}
+/* LOGO CONTAINER */
+.cookie-icon-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-container-size);
+  height: var(--icon-container-size);
+  background-color: var(--bg-logo-wrapper);
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+}
+
+/* LOGO DESIGN */
+.cookie-icon-svg {
+  width: 90%;
+  height: 90%;
+  color: var(--logo-color);
+  transition: fill 0.2s ease;
+}
+
+.cookie h2 {
+  margin: 0;
+  font-size: var(--header-text-size);
+  font-weight: 700;
+  text-transform: none;
+}
+.cookie-body p {
+  font-size: var(--body-text-size);
+  line-height: 1.6;
+  border-bottom: 1px solid var(--bg-muted);
+  padding-bottom: var(--space-md);
+  margin-top: var(--space-xs);
+}
+
+/* LAYOUT CONTAINER FOR BUTTON GROUPS */
+.cookie-buttons {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-md) var(--space-lg) var(--space-lg);
+  flex-shrink: 0;
+}
+/* BASE STYLES FOR ALL BUTTONS */
+button {
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: var(--body-text-size);
+  font-weight: 500;
+  cursor: pointer;
+  transition: 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+}
+
+/* NECESSARY ONLY AND ACCCEPT ALL BUTTONS */
+.main-actions {
+  display: flex;
+  gap: 12px;
+}
+/* PURPLE BUTTONS (Save, Accept All) */
+.btn-save,
+.btn-reject {
+  background-color: var(--accent-color);
+  color: var(--btn-accent-text);
+  border: 1px solid var(--btn-border);
+}
+
+/* DARK BUTTONS (Minimize, Customize, Reject, Return) */
+.btn-customize,
+.btn-back {
+  background-color: var(--bg-customize-btn);
+  color: var(--text-main);
+  border: 1px solid var(--btn-border);
+}
+
+/* FOOTER BUTTON FOR OPENING BANNER */
+.cookie-settings-btn {
+  color: var(--text-main);
+  background-color: var(--accent-color);
+  position: static;
+  display: inline-block;
+}
+
+button:hover {
+  filter: var(--btn-hover-filter);
+}
+
+.btn-customize:hover,
+.btn-back:hover {
+  background-color: var(--btn-secondary-hover-bg);
+  filter: var(--btn-secondary-hover-filter);
+}
+
+/* CUSTOMIZE LOGO SVG */
+.btn-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  vertical-align: middle;
+  color: inherit;
+  transition: transform 0.3s ease;
+}
+.policy-link {
+  color: var(--accent-color);
+  text-decoration: none;
+  transition: filter 0.2s;
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 1px;
+}
+
+.policy-link:hover {
+  filter: brightness(1.5);
+}
+
+/*  SETTINGS  */
+.cookie-settings-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.cookie-category-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-lg);
+  padding: var(--space-md) 0;
+  border-bottom: 1px solid var(--bg-muted);
+}
+.category-text-wrapper h5 {
+  margin: 0;
+  font-size: var(--body-text-size);
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  text-transform: none;
+}
+.category-text-wrapper p {
+  color: var(--text-muted);
+  font-size: var(--body-text-size);
+  margin-top: 4px;
+}
+
+/* TOGGLES */
+.toggle-switch {
+  width: 44px;
+  height: 24px;
+  background: var(--toggle-switch-bg);
+  border-radius: var(--radius-md);
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.toggle-slider {
+  width: 18px;
+  height: 18px;
+  background: var(--toggle-circle, var(--text-main));
+  border-radius: 50%;
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  transition: 0.2s;
+}
+.toggle-switch.active,
+.toggle-switch.always-active {
+  background: var(--accent-color);
+}
+.toggle-switch.always-active:hover {
+  cursor: not-allowed;
+}
+
+.toggle-switch.active .toggle-slider,
+.toggle-switch.always-active .toggle-slider {
+  left: 23px;
+}
+
+/* REQUIRED BADGE FOR STRICTLY NECESSSARY */
+.badge {
+  background: var(--bg-logo-wrapper);
+  font-size: var(--badge-text-size);
+  line-height: 1.4; /* explicit sa kundens radhojd inte styr badgens hojd */
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--text-muted);
+}
+
+/* UI-kansla: ingen textmarkering pa kontroller och etiketter.
+   Policytexten lamnas markerbar sa besokare kan kopiera den. */
+.cookie h2,
+.cookie h5,
+.badge,
+.cookie button,
+.cookie-category-card,
+.toggle-switch {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ANIMATION LIGHT FOR SCROLLING */
+.scroll-shadow {
+  position: relative;
+  width: 100%;
+  height: 60px;
+  margin-top: -60px;
+  background: var(--scroll-gradient);
+  pointer-events: none;
+  z-index: 100;
+  transition: opacity 0.4s ease;
+  opacity: 0;
+  flex-shrink: 0;
+}
+
+/* POLICY MODAL STYLING */
+
+.policy-container {
+  padding-bottom: 0;
+}
+
+#cookie-policy .cookie-header {
+  margin: 0 var(--space-lg);
+  padding: var(--space-lg) 0 var(--space-md) 0;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-shrink: 0;
+}
+
+#cookie-policy .cookie-icon-container {
+  width: var(--icon-container-size);
+  height: var(--icon-container-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-logo-wrapper);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+#cookie-policy .cookie-content {
+  padding-top: var(--space-md);
+}
+
+#cookie-policy h2 {
+  font-size: var(--header-text-size);
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-main);
+}
+
+.policy-container h2 {
+  margin-top: 0;
+  margin-bottom: var(--space-md);
+  color: var(--text-main);
+  font-size: var(--header-text-size);
+}
+
+.policy-container h3 {
+  font-size: 1.125rem; /* 18px */
+  font-weight: 600;
+  margin-top: var(--space-md);
+  margin-bottom: var(--space-sm);
+  color: var(--text-main);
+}
+
+.policy-container p {
+  font-size: var(--body-text-size);
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-bottom: var(--space-md);
+}
+/* RESPONSIVE TABLES MOBILE/DESKTOP */
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch; /* soft scrolling on ios */
+  margin-bottom: var(--space-lg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-main);
+}
+
+.policy-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px;
+  font-size: 0.9rem;
+}
+
+/* TABLE HEAD */
+.policy-table th {
+  text-align: left;
+  padding: var(--space-md);
+  background-color: var(--bg-muted);
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-main);
+}
+
+/* TABLECELLS */
+.policy-table td {
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-muted);
+  vertical-align: top;
+}
+
+.policy-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.policy-footer-note {
+  margin-top: var(--space-md);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border-color);
+  font-size: var(--small-text-size);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.policy-footer-note p {
+  font-size: var(--small-text-size);
+  color: var(--text-muted);
+  margin: 0;
+}
+
+@media (max-width: 475px) {
+  .cookie-section {
+    padding: var(--space-xs);
+    align-items: flex-end;
+    justify-content: center;
+    padding-top: var(--space-lg);
+    padding-bottom: var(--space-lg);
+  }
+  .cookie {
+    width: 100%;
+    max-height: calc(100svh - 48px);
+    height: auto;
+    margin-top: 0;
+  }
+
+  .cookie-header {
+    padding: var(--space-md) var(--space-md) 0;
+  }
+
+  .cookie-content {
+    padding: 0 var(--space-md);
+    flex: 1;
+    min-height: 0;
+    padding: var(--space-xs) var(--space-md);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .cookie-buttons {
+    flex-direction: column;
+    align-items: stretch;
+    padding: var(--space-sm);
+    gap: var(--space-sm);
+  }
+
+  .cookie-buttons .main-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-sm);
+  }
+
+  .main-actions {
+    display: flex;
+    gap: var(--space-sm);
+  }
+}

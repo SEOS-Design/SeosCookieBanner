@@ -1,7 +1,7 @@
 /*!
  * SEOS Cookiebanner - BYGGD FIL. Redigera inte har, andringar skrivs over.
  *
- * Kalla:  banner-src/script.js + src/css/style.css
+ * Kalla:  banner-src/script.js + banner-src/style.css
  * Bygg:   npm run build
  * Ingar:  DOMPurify 3.4.14 (https://github.com/cure53/DOMPurify)
  */
@@ -636,8 +636,534 @@
   // banner-src/script.js
   var import_purify_min = __toESM(require_purify_min());
 
-  // src/css/style.css
-  var style_default = ":root {\n  /* Color scheme dark mode */\n  --bg-main: #0e0e0e;\n  --bg-muted: rgba(255, 255, 255, 0.1);\n  --text-main: #ffffff;\n  --text-muted: #9ca3af;\n  --accent-color: #686868;\n  --accent-hover: #6366f1;\n  --bg-dark-btn: #111827;\n  --border-color: rgba(255, 255, 255, 0.2);\n  --btn-border: rgba(255, 255, 255, 0.5);\n  --logo-color: #ffffff;\n  --bg-logo-wrapper: #686868;\n  --bg-customize-btn: #1d1d1d;\n  --toggle-switch-bg: #374151;\n  --scroll-gradient: radial-gradient(\n    ellipse at bottom,\n    rgba(255, 255, 255, 0.2) 0%,\n    rgba(17, 24, 39, 0.6) 40%,\n    transparent 80%\n  );\n  --icon-path: url('/src/Cookie Icon Wrapper.svg');\n\n  /* Typography */\n  --main-font: 'Mona Sans Narrow', sans-serif;\n  --header-text-size: clamp(1.125rem, 0.9946rem + 0.6522vw, 1.5rem);\n  --body-text-size: clamp(0.875rem, 0.788rem + 0.4348vw, 1.125rem);\n  --badge-text-size: 10px;\n  --small-text-size: 12px;\n\n  /* Layout and distance */\n  --icon-container-size: clamp(2.5rem, 2.3913rem + 0.5435vw, 3rem);\n  --banner-width: 850px;\n  --radius-sm: 8px;\n  --radius-md: 12px;\n  --radius-lg: 16px;\n  /* Spacing scale from 320px to 1240px */\n  --space-xs: clamp(0.5rem, 0.4565rem + 0.2174vw, 0.625rem); /* 8px -> 10px */\n  --space-sm: clamp(0.75rem, 0.663rem + 0.4348vw, 1rem); /* 12px -> 16px */\n  --space-md: clamp(1rem, 0.8261rem + 0.8696vw, 1.5rem); /* 16px -> 24px */\n  --space-lg: clamp(1.5rem, 1.3261rem + 0.8696vw, 2rem); /* 24px -> 32px */\n  --space-xl: clamp(2rem, 1.6522rem + 1.7391vw, 3rem);\n}\n\n.light-theme {\n  /* Background and text */\n  --bg-main: #f1f3f1;\n  --bg-muted: rgba(0, 0, 0, 0.05);\n  --text-main: #111827;\n  --text-muted: #4b5563;\n  /* Accent and logo */\n  --accent-color: #66c966;\n  --logo-color: #4a9e4a;\n  --bg-logo-wrapper: #ffffff;\n  /* Buttons and borders */\n  --border-color: #d1d5db;\n  --btn-border: #d1d5db;\n  --bg-customize-btn: #ffffff;\n  /* Toggles */\n  --toggle-switch-bg: #d1d5db;\n  --toggle-circle: #ffffff;\n  /* Scroll shadow */\n  --scroll-gradient: radial-gradient(\n    ellipse at bottom,\n    rgba(0, 0, 0, 0.09) 0%,\n    rgba(0, 0, 0, 0.04) 40%,\n    transparent 80%\n  );\n}\n\n.dark-bg {\n  background-color: #222831;\n}\n/*  CONTAINER - BASIC STRUCTURE */\n.cookie-section {\n  position: fixed;\n  inset: 0;\n  padding: var(--space-lg);\n  display: flex;\n  align-items: flex-end;\n  justify-content: flex-start;\n  z-index: 9999;\n  font-family: var(--main-font);\n  pointer-events: none;\n}\n\n/* THE CONTENTS AND BUILDING BLOCK */\n.cookie {\n  background-color: var(--bg-main);\n  color: var(--text-main);\n  border: 1px solid var(--border-color);\n  border-radius: var(--radius-lg);\n  width: min(var(--banner-width), calc(100vw - var(--space-xl)));\n  max-width: calc(100vw - var(--space-xl));\n  max-height: calc(100svh - var(--space-xl));\n  display: flex;\n  flex-direction: column;\n  overflow: hidden;\n  pointer-events: auto;\n  position: relative;\n  margin-left: 0;\n}\n\n/* HEADER */\n.cookie-header {\n  display: flex;\n  align-items: center;\n  gap: var(--space-md);\n  padding: var(--space-lg) var(--space-lg) 0;\n  flex-shrink: 0;\n}\n\n/* CONTENT AND SCROLL AREA */\n.cookie-content {\n  flex: 1;\n  min-height: 0;\n  overflow-y: auto;\n  padding: 0 var(--space-lg);\n  display: flex;\n  flex-direction: column;\n  position: relative;\n  -webkit-overflow-scrolling: touch;\n  scrollbar-width: none; /*Hides scrollbar on firefox*/\n  -ms-overflow-style: none; /* Hides scrollbar on Edge*/\n}\n\n/* Hides scrollbar on Chrome and Safari*/\n.cookie-content::-webkit-scrollbar {\n  display: none;\n}\n/* LOGO CONTAINER */\n.cookie-icon-container {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  width: var(--icon-container-size);\n  height: var(--icon-container-size);\n  background-color: var(--bg-logo-wrapper);\n  flex-shrink: 0;\n  border-radius: var(--radius-sm);\n}\n\n/* LOGO DESIGN */\n.cookie-icon-svg {\n  width: 90%;\n  height: 90%;\n  color: var(--logo-color);\n  transition: fill 0.2s ease;\n}\n\n.cookie h2 {\n  margin: 0;\n  font-size: var(--header-text-size);\n  font-weight: 700;\n  text-transform: none;\n}\n.cookie-body p {\n  font-size: var(--body-text-size);\n  line-height: 1.6;\n  border-bottom: 1px solid var(--bg-muted);\n  padding-bottom: var(--space-md);\n  margin-top: var(--space-xs);\n}\n\n/* LAYOUT CONTAINER FOR BUTTON GROUPS */\n.cookie-buttons {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  gap: var(--space-xs);\n  padding: var(--space-md) var(--space-lg) var(--space-lg);\n  flex-shrink: 0;\n}\n/* BASE STYLES FOR ALL BUTTONS */\nbutton {\n  padding: var(--space-sm) var(--space-md);\n  border-radius: var(--radius-md);\n  font-size: var(--body-text-size);\n  font-weight: 500;\n  cursor: pointer;\n  transition: 0.2s;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  gap: var(--space-xs);\n}\n\n/* NECESSARY ONLY AND ACCCEPT ALL BUTTONS */\n.main-actions {\n  display: flex;\n  gap: 12px;\n}\n/* PURPLE BUTTONS (Save, Accept All) */\n.btn-save,\n.btn-reject {\n  background-color: var(--accent-color);\n  color: var(--text-main);\n  border: 1px solid var(--btn-border);\n}\n\n/* DARK BUTTONS (Minimize, Customize, Reject, Return) */\n.btn-customize,\n.btn-back {\n  background-color: var(--bg-customize-btn);\n  color: var(--text-main);\n  border: 1px solid var(--btn-border);\n}\n\n/* FOOTER BUTTON FOR OPENING BANNER */\n.cookie-settings-btn {\n  color: var(--text-main);\n  background-color: var(--accent-color);\n  position: static;\n  display: inline-block;\n}\n\nbutton:hover {\n  filter: brightness(1.2);\n}\n\n/* CUSTOMIZE LOGO SVG */\n.btn-icon {\n  width: 16px;\n  height: 16px;\n  display: inline-block;\n  vertical-align: middle;\n  color: inherit;\n  transition: transform 0.3s ease;\n}\n.policy-link {\n  color: var(--accent-color);\n  text-decoration: none;\n  transition: filter 0.2s;\n  border-bottom: 1px solid currentColor;\n  padding-bottom: 1px;\n}\n\n.policy-link:hover {\n  filter: brightness(1.5);\n}\n\n/*  SETTINGS  */\n.cookie-settings-container {\n  display: flex;\n  flex-direction: column;\n  width: 100%;\n}\n\n.cookie-category-card {\n  display: flex;\n  justify-content: space-between;\n  align-items: flex-start;\n  gap: var(--space-lg);\n  padding: var(--space-md) 0;\n  border-bottom: 1px solid var(--bg-muted);\n}\n.category-text-wrapper h5 {\n  margin: 0;\n  font-size: var(--body-text-size);\n  display: flex;\n  align-items: center;\n  gap: var(--space-xs);\n  text-transform: none;\n}\n.category-text-wrapper p {\n  color: var(--text-muted);\n  font-size: var(--body-text-size);\n  margin-top: 4px;\n}\n\n/* TOGGLES */\n.toggle-switch {\n  width: 44px;\n  height: 24px;\n  background: var(--toggle-switch-bg);\n  border-radius: var(--radius-md);\n  position: relative;\n  cursor: pointer;\n  flex-shrink: 0;\n}\n\n.toggle-slider {\n  width: 18px;\n  height: 18px;\n  background: var(--toggle-circle, var(--text-main));\n  border-radius: 50%;\n  position: absolute;\n  top: 3px;\n  left: 3px;\n  transition: 0.2s;\n}\n.toggle-switch.active,\n.toggle-switch.always-active {\n  background: var(--accent-color);\n}\n.toggle-switch.always-active:hover {\n  cursor: not-allowed;\n}\n\n.toggle-switch.active .toggle-slider,\n.toggle-switch.always-active .toggle-slider {\n  left: 23px;\n}\n\n/* REQUIRED BADGE FOR STRICTLY NECESSSARY */\n.badge {\n  background: var(--bg-logo-wrapper);\n  font-size: var(--badge-text-size);\n  line-height: 1.4; /* explicit sa kundens radhojd inte styr badgens hojd */\n  padding: 2px 6px;\n  border-radius: 4px;\n  color: var(--text-muted);\n}\n\n/* UI-kansla: ingen textmarkering pa kontroller och etiketter.\n   Policytexten lamnas markerbar sa besokare kan kopiera den. */\n.cookie h2,\n.cookie h5,\n.badge,\n.cookie button,\n.cookie-category-card,\n.toggle-switch {\n  user-select: none;\n  -webkit-user-select: none;\n}\n\n/* ANIMATION LIGHT FOR SCROLLING */\n.scroll-shadow {\n  position: relative;\n  width: 100%;\n  height: 60px;\n  margin-top: -60px;\n  background: var(--scroll-gradient);\n  pointer-events: none;\n  z-index: 100;\n  transition: opacity 0.4s ease;\n  opacity: 0;\n  flex-shrink: 0;\n}\n\n/* POLICY MODAL STYLING */\n\n.policy-container {\n  padding-bottom: 0;\n}\n\n#cookie-policy .cookie-header {\n  margin: 0 var(--space-lg);\n  padding: var(--space-lg) 0 var(--space-md) 0;\n  border-bottom: 1px solid var(--border-color);\n  display: flex;\n  align-items: center;\n  gap: var(--space-md);\n  flex-shrink: 0;\n}\n\n#cookie-policy .cookie-icon-container {\n  width: var(--icon-container-size);\n  height: var(--icon-container-size);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  background-color: var(--bg-logo-wrapper);\n  border-radius: var(--radius-sm);\n  flex-shrink: 0;\n}\n\n#cookie-policy .cookie-content {\n  padding-top: var(--space-md);\n}\n\n#cookie-policy h2 {\n  font-size: var(--header-text-size);\n  font-weight: 700;\n  margin: 0;\n  color: var(--text-main);\n}\n\n.policy-container h2 {\n  margin-top: 0;\n  margin-bottom: var(--space-md);\n  color: var(--text-main);\n  font-size: var(--header-text-size);\n}\n\n.policy-container h3 {\n  font-size: 1.125rem; /* 18px */\n  font-weight: 600;\n  margin-top: var(--space-md);\n  margin-bottom: var(--space-sm);\n  color: var(--text-main);\n}\n\n.policy-container p {\n  font-size: var(--body-text-size);\n  color: var(--text-muted);\n  line-height: 1.6;\n  margin-bottom: var(--space-md);\n}\n/* RESPONSIVE TABLES MOBILE/DESKTOP */\n.table-wrapper {\n  width: 100%;\n  overflow-x: auto;\n  -webkit-overflow-scrolling: touch; /* soft scrolling on ios */\n  margin-bottom: var(--space-lg);\n  border: 1px solid var(--border-color);\n  border-radius: var(--radius-sm);\n  background-color: var(--bg-main);\n}\n\n.policy-table {\n  width: 100%;\n  border-collapse: collapse;\n  min-width: 600px;\n  font-size: 0.9rem;\n}\n\n/* TABLE HEAD */\n.policy-table th {\n  text-align: left;\n  padding: var(--space-md);\n  background-color: var(--bg-muted);\n  border-bottom: 1px solid var(--border-color);\n  color: var(--text-main);\n}\n\n/* TABLECELLS */\n.policy-table td {\n  padding: var(--space-md);\n  border-bottom: 1px solid var(--border-color);\n  color: var(--text-muted);\n  vertical-align: top;\n}\n\n.policy-table tbody tr:last-child td {\n  border-bottom: none;\n}\n\n.policy-footer-note {\n  margin-top: var(--space-md);\n  padding-top: var(--space-sm);\n  border-top: 1px solid var(--border-color);\n  font-size: var(--small-text-size);\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n}\n\n.policy-footer-note p {\n  font-size: var(--small-text-size);\n  color: var(--text-muted);\n  margin: 0;\n}\n\n@media (max-width: 475px) {\n  .cookie-section {\n    padding: var(--space-xs);\n    align-items: flex-end;\n    justify-content: center;\n    padding-top: var(--space-lg);\n    padding-bottom: var(--space-lg);\n  }\n  .cookie {\n    width: 100%;\n    max-height: calc(100svh - 48px);\n    height: auto;\n    margin-top: 0;\n  }\n\n  .cookie-header {\n    padding: var(--space-md) var(--space-md) 0;\n  }\n\n  .cookie-content {\n    padding: 0 var(--space-md);\n    flex: 1;\n    min-height: 0;\n    padding: var(--space-xs) var(--space-md);\n    display: flex;\n    flex-direction: column;\n    overflow-y: auto;\n  }\n\n  .cookie-buttons {\n    flex-direction: column;\n    align-items: stretch;\n    padding: var(--space-sm);\n    gap: var(--space-sm);\n  }\n\n  .cookie-buttons .main-actions {\n    flex-direction: column;\n    align-items: stretch;\n    gap: var(--space-sm);\n  }\n\n  .main-actions {\n    display: flex;\n    gap: var(--space-sm);\n  }\n}\n";
+  // banner-src/style.css
+  var style_default = `/* Bannern ligger i en shadow root. :host ar dess ytterelement, som ligger kvar
+   i kundens sida med id="cookie-sectionId". Kundens egna varden satta pa det
+   id:t vinner over dessa standardvarden och arvs in genom skuggan - darfor
+   fortsatter befintliga designblock att fungera utan andring.
+
+   display: contents gor att vardelementet inte tar plats i kundens layout. */
+:host {
+  display: contents;
+
+  /* Color scheme dark mode */
+  --bg-main: #0e0e0e;
+  --bg-muted: rgba(255, 255, 255, 0.1);
+  --text-main: #ffffff;
+  --text-muted: #9ca3af;
+  --accent-color: #686868;
+  --accent-hover: #6366f1;
+  --bg-dark-btn: #111827;
+  --border-color: rgba(255, 255, 255, 0.2);
+  --btn-border: rgba(255, 255, 255, 0.5);
+  --logo-color: #ffffff;
+  --bg-logo-wrapper: #686868;
+  --bg-customize-btn: #1d1d1d;
+
+  /* Knapptext och hovring. Egna variabler eftersom en kund inte langre kan na
+     in i skuggan med en vanlig CSS-regel - variablerna ar vagen in i stallet.
+     Standardvardena ger exakt samma utseende som fore Shadow DOM. */
+  --btn-accent-text: var(--text-main);
+  --btn-hover-filter: brightness(1.2);
+  /* Samma farg som knappens vanliga bakgrund = ingen forandring vid hovring,
+     precis som forut. Effekten kom fran filtret, inte fran bakgrunden. */
+  --btn-secondary-hover-bg: var(--bg-customize-btn);
+  --btn-secondary-hover-filter: var(--btn-hover-filter);
+
+  --toggle-switch-bg: #374151;
+  --scroll-gradient: radial-gradient(
+    ellipse at bottom,
+    rgba(255, 255, 255, 0.2) 0%,
+    rgba(17, 24, 39, 0.6) 40%,
+    transparent 80%
+  );
+  --icon-path: url('/src/Cookie Icon Wrapper.svg');
+
+  /* Typography */
+  --main-font: 'Mona Sans Narrow', sans-serif;
+  --header-text-size: clamp(1.125rem, 0.9946rem + 0.6522vw, 1.5rem);
+  --body-text-size: clamp(0.875rem, 0.788rem + 0.4348vw, 1.125rem);
+  --badge-text-size: 10px;
+  --small-text-size: 12px;
+
+  /* Layout and distance */
+  --icon-container-size: clamp(2.5rem, 2.3913rem + 0.5435vw, 3rem);
+  --banner-width: 850px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  /* Spacing scale from 320px to 1240px */
+  --space-xs: clamp(0.5rem, 0.4565rem + 0.2174vw, 0.625rem); /* 8px -> 10px */
+  --space-sm: clamp(0.75rem, 0.663rem + 0.4348vw, 1rem); /* 12px -> 16px */
+  --space-md: clamp(1rem, 0.8261rem + 0.8696vw, 1.5rem); /* 16px -> 24px */
+  --space-lg: clamp(1.5rem, 1.3261rem + 0.8696vw, 2rem); /* 24px -> 32px */
+  --space-xl: clamp(2rem, 1.6522rem + 1.7391vw, 3rem);
+}
+
+.light-theme {
+  /* Background and text */
+  --bg-main: #f1f3f1;
+  --bg-muted: rgba(0, 0, 0, 0.05);
+  --text-main: #111827;
+  --text-muted: #4b5563;
+  /* Accent and logo */
+  --accent-color: #66c966;
+  --logo-color: #4a9e4a;
+  --bg-logo-wrapper: #ffffff;
+  /* Buttons and borders */
+  --border-color: #d1d5db;
+  --btn-border: #d1d5db;
+  --bg-customize-btn: #ffffff;
+  /* Toggles */
+  --toggle-switch-bg: #d1d5db;
+  --toggle-circle: #ffffff;
+  /* Scroll shadow */
+  --scroll-gradient: radial-gradient(
+    ellipse at bottom,
+    rgba(0, 0, 0, 0.09) 0%,
+    rgba(0, 0, 0, 0.04) 40%,
+    transparent 80%
+  );
+}
+
+.dark-bg {
+  background-color: #222831;
+}
+/*  CONTAINER - BASIC STRUCTURE */
+.cookie-section {
+  position: fixed;
+  inset: 0;
+  padding: var(--space-lg);
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  z-index: 9999;
+  font-family: var(--main-font);
+  pointer-events: none;
+}
+
+/* THE CONTENTS AND BUILDING BLOCK */
+.cookie {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  width: min(var(--banner-width), calc(100vw - var(--space-xl)));
+  max-width: calc(100vw - var(--space-xl));
+  max-height: calc(100svh - var(--space-xl));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  pointer-events: auto;
+  position: relative;
+  margin-left: 0;
+}
+
+/* HEADER */
+.cookie-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-lg) var(--space-lg) 0;
+  flex-shrink: 0;
+}
+
+/* CONTENT AND SCROLL AREA */
+.cookie-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /*Hides scrollbar on firefox*/
+  -ms-overflow-style: none; /* Hides scrollbar on Edge*/
+}
+
+/* Hides scrollbar on Chrome and Safari*/
+.cookie-content::-webkit-scrollbar {
+  display: none;
+}
+/* LOGO CONTAINER */
+.cookie-icon-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-container-size);
+  height: var(--icon-container-size);
+  background-color: var(--bg-logo-wrapper);
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+}
+
+/* LOGO DESIGN */
+.cookie-icon-svg {
+  width: 90%;
+  height: 90%;
+  color: var(--logo-color);
+  transition: fill 0.2s ease;
+}
+
+.cookie h2 {
+  margin: 0;
+  font-size: var(--header-text-size);
+  font-weight: 700;
+  text-transform: none;
+}
+.cookie-body p {
+  font-size: var(--body-text-size);
+  line-height: 1.6;
+  border-bottom: 1px solid var(--bg-muted);
+  padding-bottom: var(--space-md);
+  margin-top: var(--space-xs);
+}
+
+/* LAYOUT CONTAINER FOR BUTTON GROUPS */
+.cookie-buttons {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-md) var(--space-lg) var(--space-lg);
+  flex-shrink: 0;
+}
+/* BASE STYLES FOR ALL BUTTONS */
+button {
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: var(--body-text-size);
+  font-weight: 500;
+  cursor: pointer;
+  transition: 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+}
+
+/* NECESSARY ONLY AND ACCCEPT ALL BUTTONS */
+.main-actions {
+  display: flex;
+  gap: 12px;
+}
+/* PURPLE BUTTONS (Save, Accept All) */
+.btn-save,
+.btn-reject {
+  background-color: var(--accent-color);
+  color: var(--btn-accent-text);
+  border: 1px solid var(--btn-border);
+}
+
+/* DARK BUTTONS (Minimize, Customize, Reject, Return) */
+.btn-customize,
+.btn-back {
+  background-color: var(--bg-customize-btn);
+  color: var(--text-main);
+  border: 1px solid var(--btn-border);
+}
+
+/* FOOTER BUTTON FOR OPENING BANNER */
+.cookie-settings-btn {
+  color: var(--text-main);
+  background-color: var(--accent-color);
+  position: static;
+  display: inline-block;
+}
+
+button:hover {
+  filter: var(--btn-hover-filter);
+}
+
+.btn-customize:hover,
+.btn-back:hover {
+  background-color: var(--btn-secondary-hover-bg);
+  filter: var(--btn-secondary-hover-filter);
+}
+
+/* CUSTOMIZE LOGO SVG */
+.btn-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  vertical-align: middle;
+  color: inherit;
+  transition: transform 0.3s ease;
+}
+.policy-link {
+  color: var(--accent-color);
+  text-decoration: none;
+  transition: filter 0.2s;
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 1px;
+}
+
+.policy-link:hover {
+  filter: brightness(1.5);
+}
+
+/*  SETTINGS  */
+.cookie-settings-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.cookie-category-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-lg);
+  padding: var(--space-md) 0;
+  border-bottom: 1px solid var(--bg-muted);
+}
+.category-text-wrapper h5 {
+  margin: 0;
+  font-size: var(--body-text-size);
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  text-transform: none;
+}
+.category-text-wrapper p {
+  color: var(--text-muted);
+  font-size: var(--body-text-size);
+  margin-top: 4px;
+}
+
+/* TOGGLES */
+.toggle-switch {
+  width: 44px;
+  height: 24px;
+  background: var(--toggle-switch-bg);
+  border-radius: var(--radius-md);
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.toggle-slider {
+  width: 18px;
+  height: 18px;
+  background: var(--toggle-circle, var(--text-main));
+  border-radius: 50%;
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  transition: 0.2s;
+}
+.toggle-switch.active,
+.toggle-switch.always-active {
+  background: var(--accent-color);
+}
+.toggle-switch.always-active:hover {
+  cursor: not-allowed;
+}
+
+.toggle-switch.active .toggle-slider,
+.toggle-switch.always-active .toggle-slider {
+  left: 23px;
+}
+
+/* REQUIRED BADGE FOR STRICTLY NECESSSARY */
+.badge {
+  background: var(--bg-logo-wrapper);
+  font-size: var(--badge-text-size);
+  line-height: 1.4; /* explicit sa kundens radhojd inte styr badgens hojd */
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--text-muted);
+}
+
+/* UI-kansla: ingen textmarkering pa kontroller och etiketter.
+   Policytexten lamnas markerbar sa besokare kan kopiera den. */
+.cookie h2,
+.cookie h5,
+.badge,
+.cookie button,
+.cookie-category-card,
+.toggle-switch {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ANIMATION LIGHT FOR SCROLLING */
+.scroll-shadow {
+  position: relative;
+  width: 100%;
+  height: 60px;
+  margin-top: -60px;
+  background: var(--scroll-gradient);
+  pointer-events: none;
+  z-index: 100;
+  transition: opacity 0.4s ease;
+  opacity: 0;
+  flex-shrink: 0;
+}
+
+/* POLICY MODAL STYLING */
+
+.policy-container {
+  padding-bottom: 0;
+}
+
+#cookie-policy .cookie-header {
+  margin: 0 var(--space-lg);
+  padding: var(--space-lg) 0 var(--space-md) 0;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-shrink: 0;
+}
+
+#cookie-policy .cookie-icon-container {
+  width: var(--icon-container-size);
+  height: var(--icon-container-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-logo-wrapper);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+#cookie-policy .cookie-content {
+  padding-top: var(--space-md);
+}
+
+#cookie-policy h2 {
+  font-size: var(--header-text-size);
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-main);
+}
+
+.policy-container h2 {
+  margin-top: 0;
+  margin-bottom: var(--space-md);
+  color: var(--text-main);
+  font-size: var(--header-text-size);
+}
+
+.policy-container h3 {
+  font-size: 1.125rem; /* 18px */
+  font-weight: 600;
+  margin-top: var(--space-md);
+  margin-bottom: var(--space-sm);
+  color: var(--text-main);
+}
+
+.policy-container p {
+  font-size: var(--body-text-size);
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-bottom: var(--space-md);
+}
+/* RESPONSIVE TABLES MOBILE/DESKTOP */
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch; /* soft scrolling on ios */
+  margin-bottom: var(--space-lg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-main);
+}
+
+.policy-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px;
+  font-size: 0.9rem;
+}
+
+/* TABLE HEAD */
+.policy-table th {
+  text-align: left;
+  padding: var(--space-md);
+  background-color: var(--bg-muted);
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-main);
+}
+
+/* TABLECELLS */
+.policy-table td {
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-muted);
+  vertical-align: top;
+}
+
+.policy-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.policy-footer-note {
+  margin-top: var(--space-md);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border-color);
+  font-size: var(--small-text-size);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.policy-footer-note p {
+  font-size: var(--small-text-size);
+  color: var(--text-muted);
+  margin: 0;
+}
+
+@media (max-width: 475px) {
+  .cookie-section {
+    padding: var(--space-xs);
+    align-items: flex-end;
+    justify-content: center;
+    padding-top: var(--space-lg);
+    padding-bottom: var(--space-lg);
+  }
+  .cookie {
+    width: 100%;
+    max-height: calc(100svh - 48px);
+    height: auto;
+    margin-top: 0;
+  }
+
+  .cookie-header {
+    padding: var(--space-md) var(--space-md) 0;
+  }
+
+  .cookie-content {
+    padding: 0 var(--space-md);
+    flex: 1;
+    min-height: 0;
+    padding: var(--space-xs) var(--space-md);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .cookie-buttons {
+    flex-direction: column;
+    align-items: stretch;
+    padding: var(--space-sm);
+    gap: var(--space-sm);
+  }
+
+  .cookie-buttons .main-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-sm);
+  }
+
+  .main-actions {
+    display: flex;
+    gap: var(--space-sm);
+  }
+}
+`;
 
   // banner-src/script.js
   (function() {
@@ -650,6 +1176,11 @@
     const BANNER_ID = "cookie-banner";
     const SETTINGS_ID = "cookie-settings";
     const POLICY_ID = "cookie-policy";
+    const HOST_ID = "cookie-sectionId";
+    let shadow = null;
+    function el(id) {
+      return shadow ? shadow.getElementById(id) : null;
+    }
     const DEBUG = false;
     function log(...args) {
       if (DEBUG) console.log(...args);
@@ -718,15 +1249,8 @@
     let metaPixelLoaded = false;
     const pageLang = (window.SEOS_COOKIE_LANG || document.documentElement.lang || "").split("-")[0].toLowerCase();
     const t = translations[pageLang] || translations["en"];
-    function injectStyles() {
-      if (document.getElementById("seos-cookie-css")) return;
-      const style = document.createElement("style");
-      style.id = "seos-cookie-css";
-      style.textContent = style_default;
-      document.head.appendChild(style);
-    }
     function injectBannerHTML() {
-      if (document.getElementById("cookie-sectionId")) return;
+      if (document.getElementById(HOST_ID)) return;
       const cookieIconSVG = `
       <svg class="cookie-icon-svg" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2"
   stroke-linecap="round" stroke-linejoin="round">
@@ -741,7 +1265,7 @@
   d="M15 22V22.01" />
       </svg>`;
       const bannerHTML = `
-  <section class="cookie-section" id="cookie-sectionId">
+  <section class="cookie-section">
 
     <div class="cookie" id="${BANNER_ID}" style="display: none;">
       <div class="cookie-header">
@@ -751,11 +1275,11 @@
       <div class="cookie-content">
         <div class="cookie-body">
           <p>${t.bannerBody}
-          <a class="policy-link" href="#" onclick="showPolicy(); return false;"> ${t.policyLink}</a></p>
+          <a class="policy-link" href="#" data-handling="visaPolicy"> ${t.policyLink}</a></p>
         </div>
       </div>
       <div class="cookie-buttons">
-        <button class="btn-customize" onclick="openSettings()">${t.customize}
+        <button class="btn-customize" data-handling="oppnaInstallningar">${t.customize}
           <svg class="btn-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round"
   stroke-linejoin="round">
             <path d="M9.33334 11.3333H3.33334" /><path d="M12.6667 4.66666H6.66666" />
@@ -766,8 +1290,8 @@
           </svg>
         </button>
         <div class="main-actions">
-          <button class="btn-reject" onclick="acceptEssential()">${t.necessaryOnly}</button>
-          <button class="btn-save" onclick="acceptAll()">${t.acceptAll}</button>
+          <button class="btn-reject" data-handling="endastNodvandiga">${t.necessaryOnly}</button>
+          <button class="btn-save" data-handling="acceptaAlla">${t.acceptAll}</button>
         </div>
       </div>
     </div>
@@ -789,21 +1313,21 @@
             </div>
             <div class="toggle-switch always-active"><div class="toggle-slider"></div></div>
           </div>
-          <div class="cookie-category-card" onclick="toggleCookie(this.querySelector('#performance-toggle'))">
+          <div class="cookie-category-card" data-handling="vaxla" data-reglage="performance-toggle">
             <div class="category-text-wrapper">
               <h5>${t.analyticsLabel}</h5>
               <p>${t.analyticsDesc}</p>
             </div>
             <div class="toggle-switch" id="performance-toggle"><div class="toggle-slider"></div></div>
           </div>
-          <div class="cookie-category-card" onclick="toggleCookie(this.querySelector('#functional-toggle'))">
+          <div class="cookie-category-card" data-handling="vaxla" data-reglage="functional-toggle">
             <div class="category-text-wrapper">
               <h5>${t.functionalLabel}</h5>
               <p>${t.functionalDesc}</p>
             </div>
             <div class="toggle-switch" id="functional-toggle"><div class="toggle-slider"></div></div>
           </div>
-          <div class="cookie-category-card" onclick="toggleCookie(this.querySelector('#marketing-toggle'))">
+          <div class="cookie-category-card" data-handling="vaxla" data-reglage="marketing-toggle">
             <div class="category-text-wrapper">
               <h5>${t.marketingLabel}</h5>
               <p>${t.marketingDesc}</p>
@@ -814,10 +1338,10 @@
       </div>
       <div class="scroll-shadow" id="bottom-shadow"></div>
       <div class="cookie-buttons">
-        <button class="btn-back" onclick="backToBanner()">${t.returnBtn}</button>
+        <button class="btn-back" data-handling="tillbaka">${t.returnBtn}</button>
         <div class="main-actions">
-          <button class="btn-reject" onclick="acceptEssential()">${t.necessaryOnly}</button>
-          <button class="btn-save" onclick="saveSettings()">${t.savePreferences}</button>
+          <button class="btn-reject" data-handling="endastNodvandiga">${t.necessaryOnly}</button>
+          <button class="btn-save" data-handling="sparaInstallningar">${t.savePreferences}</button>
         </div>
       </div>
     </div>
@@ -832,13 +1356,44 @@
       </div>
       <div class="cookie-buttons">
         <div class="main-actions">
-          <button class="btn-save" onclick="closePolicy()">${t.close}</button>
+          <button class="btn-save" data-handling="stangPolicy">${t.close}</button>
         </div>
       </div>
     </div>
 
   </section>`;
-      document.body.insertAdjacentHTML("beforeend", bannerHTML);
+      const host = document.createElement("div");
+      host.id = HOST_ID;
+      document.body.appendChild(host);
+      shadow = host.attachShadow({ mode: "open" });
+      const style = document.createElement("style");
+      style.id = "seos-cookie-css";
+      style.textContent = style_default;
+      shadow.appendChild(style);
+      const mall = document.createElement("template");
+      mall.innerHTML = bannerHTML;
+      shadow.appendChild(mall.content);
+      kopplaHandelser();
+    }
+    function kopplaHandelser() {
+      const handlingar = {
+        visaPolicy: showPolicy,
+        oppnaInstallningar: openSettings,
+        endastNodvandiga: acceptEssential,
+        acceptaAlla: acceptAll,
+        sparaInstallningar: saveSettings,
+        tillbaka: backToBanner,
+        stangPolicy: closePolicy,
+        vaxla: (element) => toggleCookie(el(element.dataset.reglage))
+      };
+      shadow.addEventListener("click", (handelse) => {
+        const traff = handelse.target.closest("[data-handling]");
+        if (!traff) return;
+        const kor = handlingar[traff.dataset.handling];
+        if (!kor) return;
+        handelse.preventDefault();
+        kor(traff);
+      });
     }
     function generateUUID() {
       if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -888,21 +1443,21 @@
       return clientId;
     }
     function hideAllBanners() {
-      document.getElementById(BANNER_ID).style.display = "none";
-      document.getElementById(SETTINGS_ID).style.display = "none";
-      document.getElementById(POLICY_ID).style.display = "none";
+      el(BANNER_ID).style.display = "none";
+      el(SETTINGS_ID).style.display = "none";
+      el(POLICY_ID).style.display = "none";
     }
     function showCookieBanner() {
       hideAllBanners();
-      document.getElementById(BANNER_ID).style.display = "flex";
+      el(BANNER_ID).style.display = "flex";
     }
     function showSettingsModal() {
       hideAllBanners();
-      document.getElementById(SETTINGS_ID).style.display = "flex";
+      el(SETTINGS_ID).style.display = "flex";
     }
     function showPolicyModal() {
       hideAllBanners();
-      document.getElementById(POLICY_ID).style.display = "flex";
+      el(POLICY_ID).style.display = "flex";
     }
     function acceptAllConsent() {
       const clientId = getOrCreateClientId();
@@ -1071,7 +1626,7 @@
         }
       }
       const applyToggleState = (id, isActive) => {
-        const element = document.getElementById(id);
+        const element = el(id);
         if (element) {
           element.classList.toggle("active", isActive);
         }
@@ -1085,8 +1640,8 @@
       }, 10);
     }
     function checkScrollStatus() {
-      const scrollArea = document.getElementById("scroll-area");
-      const bottomShadow = document.getElementById("bottom-shadow");
+      const scrollArea = el("scroll-area");
+      const bottomShadow = el("bottom-shadow");
       if (scrollArea && bottomShadow) {
         const hasScroll = scrollArea.scrollHeight > scrollArea.clientHeight;
         bottomShadow.style.opacity = hasScroll ? "1" : "0";
@@ -1102,9 +1657,9 @@
     }
     function saveSettings() {
       const clientId = getOrCreateClientId();
-      const analytics = document.getElementById("performance-toggle")?.classList.contains("active") || false;
-      const marketing = document.getElementById("marketing-toggle")?.classList.contains("active") || false;
-      const functional = document.getElementById("functional-toggle")?.classList.contains("active") || false;
+      const analytics = el("performance-toggle")?.classList.contains("active") || false;
+      const marketing = el("marketing-toggle")?.classList.contains("active") || false;
+      const functional = el("functional-toggle")?.classList.contains("active") || false;
       const payload = {
         necessary: true,
         analytics,
@@ -1148,8 +1703,8 @@
       const domain = window.location.hostname;
       const policyUrl = `${API_BASE_URL}/consent/policy/latest?domain=${domain}`;
       showPolicyModal();
-      const contentArea = document.getElementById("policy-content-area");
-      const titleArea = document.getElementById("policy-version-title");
+      const contentArea = el("policy-content-area");
+      const titleArea = el("policy-version-title");
       contentArea.innerHTML = `<p>${t.policyLoading}</p>`;
       try {
         const response = await fetch(policyUrl);
@@ -1215,7 +1770,6 @@
       }
     }
     function initializeBanner() {
-      injectStyles();
       injectBannerHTML();
       const webflowLink = document.getElementById("open-cookie-settings");
       if (webflowLink) {

@@ -9,5 +9,5 @@
 # build.js normaliserar dessutom radsluten sjalvt, sa bygget ar korrekt aven
 # for den som klonar med andra git-installningar. Detta ar balte, det ar hangsle.
 banner-src/script.js text eol=lf
-src/css/style.css    text eol=lf
+banner-src/style.css text eol=lf
 src/v1/banner.js     text eol=lf
