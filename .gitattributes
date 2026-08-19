@@ -1,4 +1,13 @@
 # Den byggda filen jamfors byte for byte i CI (kontrollen mot att artefakten
 # driftar fran kallkoden). Utan detta checkas den ut med CRLF pa Windows och
-# med LF i CI, och jamforelsen slutar betyda samma sak pa de tva maskinerna.
-src/v1/banner.js text eol=lf
+# med LF i CI, och jamforelsen slutar betyda samma ting pa de tva maskinerna.
+#
+# BADE indata och utdata maste sta har. Forsta forsoket laste bara utfilen -
+# da las esbuild kallfilerna med CRLF pa Windows och med LF i CI, och radsluten
+# foljde med in i bundlen. CI felade direkt.
+#
+# build.js normaliserar dessutom radsluten sjalvt, sa bygget ar korrekt aven
+# for den som klonar med andra git-installningar. Detta ar balte, det ar hangsle.
+banner-src/script.js text eol=lf
+src/css/style.css    text eol=lf
+src/v1/banner.js     text eol=lf

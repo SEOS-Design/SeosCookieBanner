@@ -37,7 +37,7 @@ const UTFIL = path.join(ROT, 'src', 'v1', 'banner.js');
 // Lases direkt fran filen: paketets "exports" slapper inte igenom
 // require('dompurify/package.json').
 const dompurifyVersion = JSON.parse(
-  fs.readFileSync(path.join(ROT, 'node_modules', 'dompurify', 'package.json'), 'utf8'),
+  fs.readFileSync(path.join(ROT, 'node_modules', 'dompurify', 'package.json'), 'utf8')
 ).version;
 
 const huvud = `/*!
@@ -48,36 +48,67 @@ const huvud = `/*!
  * Ingar:  DOMPurify ${dompurifyVersion} (https://github.com/cure53/DOMPurify)
  */`;
 
+// Radslut normaliseras till LF innan nagot bakas in.
+//
+// Pa Windows checkas kallfilerna ut med CRLF, i CI med LF. De tecknen foljer
+// med rakt in i den byggda filen - inuti CSS-strangen och inuti bannerns
+// HTML-mallar - och da blir filen olika pa olika maskiner. Driftkontrollen kan
+// aldrig ga jamnt ut, och "deterministiskt bygge" betyder ingenting.
+//
+// Detta ar avsiktligt lost HAR och inte bara i .gitattributes: bygget ska ge
+// samma fil oavsett hur den som kor det har stallt in sin git.
+//
+// Upptackt 2026-08-19 nar exakt det hande - CI felade pa forsta pushen.
+const normaliseraRadslut = {
+  name: 'normalisera-radslut',
+  setup(bygge) {
+    bygge.onLoad({ filter: /\.(js|css)$/ }, (arg) => {
+      // Beroenden levereras med LF ur paketet och rors inte.
+      if (arg.path.includes('node_modules')) return;
+      return {
+        // \r\n? och inte bara \r\n: taler aven ensamma CR.
+        contents: fs.readFileSync(arg.path, 'utf8').replace(/\r\n?/g, '\n'),
+        loader: arg.path.endsWith('.css') ? 'text' : 'js',
+      };
+    });
+  },
+};
+
 fs.mkdirSync(path.dirname(UTFIL), { recursive: true });
 
-esbuild.buildSync({
-  entryPoints: [ENTRY],
-  outfile: UTFIL,
-  bundle: true,
-  format: 'iife',
+// Asynkront API: esbuild tillater inte plugins i det synkrona.
+esbuild
+  .build({
+    plugins: [normaliseraRadslut],
+    entryPoints: [ENTRY],
+    outfile: UTFIL,
+    bundle: true,
+    format: 'iife',
 
-  // es2020 halller optional chaining (?.) kvar som den ar. Samma syntax skickas
-  // redan idag till kundernas besokare utan problem, och en nedtranspilering
-  // hade bara gjort den granskningsbara filen svarare att lasa.
-  target: 'es2020',
+    // es2020 halller optional chaining (?.) kvar som den ar. Samma syntax skickas
+    // redan idag till kundernas besokare utan problem, och en nedtranspilering
+    // hade bara gjort den granskningsbara filen svarare att lasa.
+    target: 'es2020',
 
-  // Utan detta skrivs a, a och o som \u-sekvenser i hela bannertexten.
-  charset: 'utf8',
+    // Utan detta skrivs a, a och o som \u-sekvenser i hela bannertexten.
+    charset: 'utf8',
 
-  // INTE minifierad, med flit: filen committas och ska ga att granska i en diff.
-  // DOMPurify tas in fardigminifierad (se importen i script.js), sa det som
-  // annars hade dominerat storleken ligger pa en rad och var kod forblir lasbar.
-  minify: false,
+    // INTE minifierad, med flit: filen committas och ska ga att granska i en diff.
+    // DOMPurify tas in fardigminifierad (se importen i script.js), sa det som
+    // annars hade dominerat storleken ligger pa en rad och var kod forblir lasbar.
+    minify: false,
 
-  // Stilmallen bakas in som en strang och skrivs ut i ett <style>-element.
-  loader: { '.css': 'text' },
+    // Stilmallen bakas in som en strang och skrivs ut i ett <style>-element.
+    loader: { '.css': 'text' },
 
-  legalComments: 'inline',
-  banner: { js: huvud },
-});
+    legalComments: 'inline',
+    banner: { js: huvud },
+  })
+  .then(() => {
+    const bytes = fs.statSync(UTFIL).size;
+    const gzip = zlib.gzipSync(fs.readFileSync(UTFIL)).length;
+    const kb = (n) => (n / 1024).toFixed(1) + ' kB';
 
-const bytes = fs.statSync(UTFIL).size;
-const gzip = zlib.gzipSync(fs.readFileSync(UTFIL)).length;
-const kb = (n) => (n / 1024).toFixed(1) + ' kB';
-
-console.log(`Byggd: src/v1/banner.js  ${kb(bytes)}  (${kb(gzip)} gzippad)`);
+    console.log(`Byggd: src/v1/banner.js  ${kb(bytes)}  (${kb(gzip)} gzippad)`);
+  })
+  .catch(() => process.exit(1));
