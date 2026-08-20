@@ -1257,7 +1257,6 @@ button:hover {
     const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
     const API_BASE_URL = isLocalhost ? "http://127.0.0.1:3000" : PRODUCTION_API_URL;
     let client_consent_id_cache = null;
-    const SHORT_LIVED_COOKIE_HOURS = 1;
     const LONG_LIVED_COOKIE_DAYS = 30;
     const BANNER_ID = "cookie-banner";
     const SETTINGS_ID = "cookie-settings";
@@ -1610,26 +1609,73 @@ button:hover {
         userAgent: navigator.userAgent
       };
     }
-    async function saveConsentAndSend(payload) {
+    const KO_NYCKEL = "seos_consent_ko";
+    const KO_MAX_POSTER = 10;
+    const KO_MAX_ALDER_DAGAR = 30;
+    const KO_MAX_FORSOK = 5;
+    function lasKo() {
       try {
-        const response = await fetch(`${API_BASE_URL}/consent`, {
+        const rad = window.localStorage.getItem(KO_NYCKEL);
+        const ko = rad ? JSON.parse(rad) : [];
+        return Array.isArray(ko) ? ko : [];
+      } catch (e) {
+        return [];
+      }
+    }
+    function skrivKo(ko) {
+      try {
+        if (ko.length) window.localStorage.setItem(KO_NYCKEL, JSON.stringify(ko));
+        else window.localStorage.removeItem(KO_NYCKEL);
+      } catch (e) {
+      }
+    }
+    async function postaConsent(payload) {
+      try {
+        const svar = await fetch(`${API_BASE_URL}/consent`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
-        if (response.ok) {
-          setCookie("consent_status", payload.status, LONG_LIVED_COOKIE_DAYS);
-          const data = await response.json().catch(() => null);
-          log("[Backend] Consent recorded successfully:", data);
-        } else {
-          console.error("[Backend] Consent POST failed, status:", response.status);
-          const errorData = await response.json().catch(() => ({}));
-          console.error("Error details:", errorData);
-          return;
+        if (svar.ok) {
+          log("[Backend] Consent recorded successfully");
+          return "ok";
         }
+        if (svar.status >= 400 && svar.status < 500) {
+          const detaljer = await svar.json().catch(() => ({}));
+          console.error("[Backend] Consent avvisad, status:", svar.status, detaljer);
+          return "avvisad";
+        }
+        console.error("[Backend] Consent POST failed, status:", svar.status);
+        return "fel";
       } catch (error) {
         console.error("[Backend] Network error - could not reach server:", error);
+        return "fel";
       }
+    }
+    function koaConsent(payload) {
+      const ko = lasKo();
+      ko.push({ payload, forsok: 0 });
+      skrivKo(ko.slice(-KO_MAX_POSTER));
+      log("[Ko] Samtycke koat, poster i ko:", Math.min(ko.length, KO_MAX_POSTER));
+    }
+    async function tomKo() {
+      const ko = lasKo();
+      if (!ko.length) return;
+      const kvar = [];
+      for (const post of ko) {
+        const alder = Date.now() - new Date(post.payload.timestamp).getTime();
+        if (!(alder < KO_MAX_ALDER_DAGAR * 864e5)) continue;
+        const resultat = await postaConsent(post.payload);
+        if (resultat === "ok" || resultat === "avvisad") continue;
+        post.forsok += 1;
+        if (post.forsok < KO_MAX_FORSOK) kvar.push(post);
+      }
+      skrivKo(kvar);
+      if (ko.length !== kvar.length) log("[Ko] Skickade", ko.length - kvar.length, "koade samtycken");
+    }
+    async function saveConsentAndSend(payload) {
+      const resultat = await postaConsent(payload);
+      if (resultat === "fel") koaConsent(payload);
     }
     function applyGoogleConsentFromPayload(payload) {
       if (typeof gtag !== "function") {
@@ -1715,7 +1761,7 @@ button:hover {
     }
     function acceptAll() {
       const payload = acceptAllConsent();
-      setCookie("consent_status", payload.status, SHORT_LIVED_COOKIE_HOURS / 24);
+      setCookie("consent_status", payload.status, LONG_LIVED_COOKIE_DAYS);
       hideAllBanners();
       applyGoogleConsentFromPayload(payload);
       applyMetaConsentFromPayload(payload);
@@ -1725,7 +1771,7 @@ button:hover {
     }
     function acceptEssential() {
       const payload = acceptEssentialConsent();
-      setCookie("consent_status", payload.status, SHORT_LIVED_COOKIE_HOURS / 24);
+      setCookie("consent_status", payload.status, LONG_LIVED_COOKIE_DAYS);
       hideAllBanners();
       applyGoogleConsentFromPayload(payload);
       applyMetaConsentFromPayload(payload);
@@ -1796,7 +1842,7 @@ button:hover {
       };
       const choices = { analytics, marketing, functional };
       setCookie("consent_choices", JSON.stringify(choices), LONG_LIVED_COOKIE_DAYS);
-      setCookie("consent_status", "custom", SHORT_LIVED_COOKIE_HOURS / 24);
+      setCookie("consent_status", "custom", LONG_LIVED_COOKIE_DAYS);
       applyGoogleConsentFromPayload(payload);
       applyMetaConsentFromPayload(payload);
       if (analytics) {
@@ -1905,6 +1951,7 @@ button:hover {
       setTimeout(() => {
         getOrCreateClientId();
         loadAndApplySavedConsent();
+        tomKo();
         const consentStatus = getCookie("consent_status");
         if (consentStatus) {
           hideAllBanners();

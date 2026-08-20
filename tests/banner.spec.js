@@ -461,6 +461,119 @@ test.describe('Tillganglighet', () => {
   }
 });
 
+// C4. Ar API:t nere nar nagon klickar galler valet anda - men BEVISET gick
+// tidigare forlorat, och bevisbordan ar hela tjanstens karnlofte. Cookien
+// sattes dessutom pa en timme, sa bannern kom tillbaka och fragade igen.
+test.describe('Retry-ko for missade samtycken', () => {
+  const KO = 'seos_consent_ko';
+
+  /** Later API:t se ut som nere. Returnerar de anrop som forsokts. */
+  async function apiNere(page) {
+    const forsok = [];
+    await page.route('**/consent', (route) => {
+      forsok.push(JSON.parse(route.request().postData() || '{}'));
+      return route.abort('failed');
+    });
+    return forsok;
+  }
+
+  test('samtycket koas nar API:t inte svarar', async ({ page }) => {
+    const forsok = await apiNere(page);
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    await knapp.acceptera(page).click();
+    await expect(page.locator('#cookie-banner')).toBeHidden();
+    expect(forsok.length).toBe(1);
+
+    const ko = await page.evaluate((n) => JSON.parse(localStorage.getItem(n) || '[]'), KO);
+    expect(ko).toHaveLength(1);
+    expect(ko[0].payload.status).toBe('all');
+    expect(ko[0].payload.analytics).toBe(true);
+
+    // Cookien ska ha full livslangd anda - annars kommer bannern tillbaka om
+    // en timme och fragar om samma sak.
+    const utgang = await page.evaluate(async () => {
+      const c = await document.cookie;
+      return c.includes('consent_status=all');
+    });
+    expect(utgang).toBe(true);
+  });
+
+  test('kon toms vid nasta sidladdning och beviset behaller sin tidsstampel', async ({ page }) => {
+    const forsokNere = await apiNere(page);
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    await knapp.acceptera(page).click();
+    await expect(page.locator('#cookie-banner')).toBeHidden();
+    const tidpunktVidKlick = (
+      await page.evaluate((n) => JSON.parse(localStorage.getItem(n) || '[]'), KO)
+    )[0].payload.timestamp;
+    expect(forsokNere).toHaveLength(1);
+
+    // API:t kommer tillbaka. Nasta sidladdning ska skicka det koade.
+    await page.unroute('**/consent');
+    const mottagna = [];
+    await page.route('**/consent', (route) => {
+      mottagna.push(JSON.parse(route.request().postData() || '{}'));
+      return route.fulfill({ status: 201, contentType: 'application/json', body: '{}' });
+    });
+
+    await page.goto(SIDA.utanPixel);
+    await expect.poll(() => mottagna.length).toBe(1);
+
+    // Tidsstampeln ska vara fran KLICKET, inte fran nar det kom fram - annars
+    // ljuger bevisloggen om nar samtycket gavs.
+    expect(mottagna[0].timestamp).toBe(tidpunktVidKlick);
+
+    await expect
+      .poll(() => page.evaluate((n) => localStorage.getItem(n), KO))
+      .toBe(null);
+  });
+
+  test('ett avvisat samtycke koas inte - det skulle aldrig lyckas', async ({ page }) => {
+    // 403 betyder att API:t forstod oss och sa nej (fel site key, fel origin).
+    // Att forsoka om det for evigt ger samma svar.
+    const forsok = [];
+    await page.route('**/consent', (route) => {
+      forsok.push(1);
+      return route.fulfill({ status: 403, contentType: 'application/json', body: '{}' });
+    });
+
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    await knapp.acceptera(page).click();
+    await expect(page.locator('#cookie-banner')).toBeHidden();
+
+    expect(forsok).toHaveLength(1);
+    expect(await page.evaluate((n) => localStorage.getItem(n), KO)).toBe(null);
+  });
+
+  test('for gamla samtycken slangs i stallet for att skickas', async ({ page }) => {
+    const mottagna = [];
+    await page.route('**/consent', (route) => {
+      mottagna.push(1);
+      return route.fulfill({ status: 201, contentType: 'application/json', body: '{}' });
+    });
+
+    // 40 dagar gammalt - besokaren har for lange sedan fatt fragan igen.
+    await page.addInitScript((n) => {
+      const gammal = new Date(Date.now() - 40 * 86400000).toISOString();
+      localStorage.setItem(
+        n,
+        JSON.stringify([{ payload: { status: 'all', timestamp: gammal }, forsok: 0 }]),
+      );
+    }, KO);
+
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    await page.waitForTimeout(600);
+
+    expect(mottagna).toHaveLength(0);
+    expect(await page.evaluate((n) => localStorage.getItem(n), KO)).toBe(null);
+  });
+});
+
 test.describe('Meta-pixeln laddas inte utan samtycke', () => {
   test('noll anrop till Facebook innan besokaren valt', async ({ page }) => {
     const anrop = spionaPaFacebook(page);
