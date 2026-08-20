@@ -343,6 +343,124 @@ test.describe('Isolering fran kundens CSS', () => {
   });
 });
 
+// C8. Fore detta var kategorireglagen <div> med onclick: onabara med tangentbord
+// och stumma for skarmlasare. En besokare som inte kan anvanda mus kunde alltsa
+// inte gora ett val per kategori - vilket gor det svart att havda att samtycket
+// var "specifikt" och en "aktiv handling".
+test.describe('Tillganglighet', () => {
+  const oppnaInstallningar = async (page) => {
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    await page.locator('#cookie-banner .btn-customize').click();
+    await expect(page.locator('#cookie-settings')).toBeVisible();
+  };
+
+  test('reglagen gaar att naa och styra med bara tangentbord', async ({ page }) => {
+    await medSkugga(page);
+    await oppnaInstallningar(page);
+
+    const reglage = page.locator('#performance-toggle');
+    await expect(reglage).toHaveAttribute('role', 'switch');
+    await expect(reglage).toHaveAttribute('aria-checked', 'false');
+
+    // Ingen mus: tabba fram till reglaget och slaa pa det med mellanslag.
+    await reglage.focus();
+    expect(await page.evaluate(() => skugga().activeElement.id)).toBe('performance-toggle');
+    await page.keyboard.press('Space');
+
+    await expect(reglage).toHaveAttribute('aria-checked', 'true');
+    expect(
+      await page.evaluate(() => skugga().getElementById('performance-toggle').classList.contains('active')),
+    ).toBe(true);
+
+    // Valet ska ocksa spara ratt - inte bara se ratt ut.
+    await page.locator('#cookie-settings .btn-save').click();
+    expect(decodeURIComponent(await page.evaluate(() => document.cookie))).toContain(
+      '"analytics":true',
+    );
+  });
+
+  test('reglaget beraattar vad det heter och om det ar paa', async ({ page }) => {
+    await medSkugga(page);
+    await oppnaInstallningar(page);
+
+    // Namnet kommer fran rubriken via aria-labelledby, statusen fran aria-checked.
+    const namn = await page.evaluate(() => {
+      const r = skugga().getElementById('marketing-toggle');
+      return skugga().getElementById(r.getAttribute('aria-labelledby')).textContent.trim();
+    });
+    expect(namn).toBe('Marknadsföring');
+
+    // Den obligatoriska kategorin ska synas som paslagen och inte gaa att andra.
+    const nodvandig = page.locator('#cookie-settings .toggle-switch.always-active');
+    await expect(nodvandig).toHaveAttribute('aria-checked', 'true');
+    await expect(nodvandig).toBeDisabled();
+  });
+
+  test('rutorna ar dialoger och fokus foljer med in och ut', async ({ page }) => {
+    await medSkugga(page);
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    await expect(page.locator('#cookie-banner')).toHaveAttribute('role', 'dialog');
+
+    const oppnaKnapp = page.locator('#cookie-banner .btn-customize');
+    await oppnaKnapp.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#cookie-settings')).toBeVisible();
+
+    // Fokus ska ha flyttat in i den oppnade rutan.
+    const inne = await page.evaluate(() =>
+      skugga().getElementById('cookie-settings').contains(skugga().activeElement),
+    );
+    expect(inne).toBe(true);
+
+    // Escape stanger, och fokus ska tillbaka dit det kom ifran.
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    expect(await page.evaluate(() => skugga().activeElement.className)).toContain('btn-customize');
+  });
+
+  // Axe hoppar over dolda element. Forsta versionen granskade darfor bara
+  // forsta rutan och missade ett kontrastfel i "KRÄVS"-etiketten, som bara
+  // finns i installningsrutan. Bada lagena maste granskas.
+  for (const [lage, forbered] of [
+    ['bannern', async () => {}],
+    [
+      'installningarna',
+      async (page) => {
+        await page.locator('#cookie-banner .btn-customize').click();
+        await page.locator('#cookie-settings').waitFor({ state: 'visible' });
+      },
+    ],
+  ]) {
+    test(`automatisk granskning hittar inga fel i ${lage}`, async ({ page }) => {
+      const { default: AxeBuilder } = await import('@axe-core/playwright');
+      await page.goto(SIDA.utanPixel);
+      await expect(page.locator('#cookie-banner')).toBeVisible();
+      await forbered(page);
+
+      // Granskar bannern, inte testsidan omkring den.
+      const resultat = await new AxeBuilder({ page })
+        .include('#cookie-sectionId')
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+
+      // Axe lagger kontraster den inte kan avgora i "incomplete", inte i
+      // "violations". Uppmatt: med text i samma farg som bakgrunden blev det
+      // fyra incomplete och NOLL violations. Ett test som bara laser violations
+      // hade darfor varit tyst om ett uppenbart fel. Bada raknas.
+      const brister = [...resultat.violations, ...resultat.incomplete];
+      const fel = brister.flatMap((v) =>
+        v.nodes.map(
+          (n) => `${v.id}: ${String(n.target)} - ${(n.failureSummary || '').replace(/\s+/g, ' ').slice(0, 120)}`,
+        ),
+      );
+      expect(fel, fel.join('\n')).toEqual([]);
+    });
+  }
+});
+
 test.describe('Meta-pixeln laddas inte utan samtycke', () => {
   test('noll anrop till Facebook innan besokaren valt', async ({ page }) => {
     const anrop = spionaPaFacebook(page);

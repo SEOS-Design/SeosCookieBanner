@@ -155,6 +155,46 @@ const t = translations[pageLang] || translations['en'];
 // HTML INJECTION for easy plug in
 //========================================================================
 
+// Kategorikorten. Reglaget ar en RIKTIG <button role="switch"> och inte en
+// <div> - annars gar det varken att na med tangentbord eller att lasa upp med
+// skarmlasare, och da kan besokaren inte gora ett specifikt val per kategori.
+// Kortet i sin helhet ar fortfarande klickbart: klicket bubblar upp fran
+// knappen till kortets data-handling, sa bada vagarna ger exakt ett omslag.
+function kategoriKort() {
+  const kategorier = [
+    {
+      id: 'necessary',
+      etikett: `${t.necessaryLabel} <span class="badge">${t.requiredBadge}</span>`,
+      text: t.necessaryDesc,
+      last: true,
+    },
+    { id: 'performance', reglage: 'performance-toggle', etikett: t.analyticsLabel, text: t.analyticsDesc },
+    { id: 'functional', reglage: 'functional-toggle', etikett: t.functionalLabel, text: t.functionalDesc },
+    { id: 'marketing', reglage: 'marketing-toggle', etikett: t.marketingLabel, text: t.marketingDesc },
+  ];
+
+  return kategorier
+    .map((k) => {
+      const kortAttribut = k.last ? '' : ` data-handling="vaxla" data-reglage="${k.reglage}"`;
+      const knappAttribut = k.last
+        ? 'class="toggle-switch always-active" aria-checked="true" disabled'
+        : `class="toggle-switch" id="${k.reglage}" aria-checked="false"`;
+
+      return `
+          <div class="cookie-category-card"${kortAttribut}>
+            <div class="category-text-wrapper">
+              <h5 id="etikett-${k.id}">${k.etikett}</h5>
+              <p id="text-${k.id}">${k.text}</p>
+            </div>
+            <button type="button" role="switch" ${knappAttribut}
+              aria-labelledby="etikett-${k.id}" aria-describedby="text-${k.id}">
+              <span class="toggle-slider"></span>
+            </button>
+          </div>`;
+    })
+    .join('');
+}
+
 function injectBannerHTML() {
   if (document.getElementById(HOST_ID)) return;
 
@@ -176,12 +216,12 @@ function injectBannerHTML() {
   // med addEventListener nedan. Battre for tillganglighet (C8), och en
   // forutsattning for att kunna sluta lagga funktioner pa window.
   const bannerHTML = `
-  <section class="cookie-section">
+  <section class="cookie-section" lang="${pageLang || 'en'}">
 
-    <div class="cookie" id="${BANNER_ID}" style="display: none;">
+    <div class="cookie" id="${BANNER_ID}" style="display: none;" role="dialog" tabindex="-1" aria-labelledby="rubrik-banner">
       <div class="cookie-header">
         <div class="cookie-icon-container">${cookieIconSVG}</div>
-        <h2>${t.bannerTitle}</h2>
+        <h2 id="rubrik-banner">${t.bannerTitle}</h2>
       </div>
       <div class="cookie-content">
         <div class="cookie-body">
@@ -207,44 +247,17 @@ function injectBannerHTML() {
       </div>
     </div>
 
-    <div class="cookie" id="${SETTINGS_ID}" style="display: none;">
+    <div class="cookie" id="${SETTINGS_ID}" style="display: none;" role="dialog" tabindex="-1" aria-labelledby="rubrik-installningar">
       <div class="cookie-header">
         <div class="cookie-icon-container">${cookieIconSVG}</div>
-        <h2>${t.settingsTitle}</h2>
+        <h2 id="rubrik-installningar">${t.settingsTitle}</h2>
       </div>
       <div class="cookie-content" id="scroll-area">
         <div class="cookie-body">
           <p>${t.settingsBody}</p>
         </div>
         <div id="settings-container" class="cookie-settings-container">
-          <div class="cookie-category-card">
-            <div class="category-text-wrapper">
-              <h5>${t.necessaryLabel} <span class="badge">${t.requiredBadge}</span></h5>
-              <p>${t.necessaryDesc}</p>
-            </div>
-            <div class="toggle-switch always-active"><div class="toggle-slider"></div></div>
-          </div>
-          <div class="cookie-category-card" data-handling="vaxla" data-reglage="performance-toggle">
-            <div class="category-text-wrapper">
-              <h5>${t.analyticsLabel}</h5>
-              <p>${t.analyticsDesc}</p>
-            </div>
-            <div class="toggle-switch" id="performance-toggle"><div class="toggle-slider"></div></div>
-          </div>
-          <div class="cookie-category-card" data-handling="vaxla" data-reglage="functional-toggle">
-            <div class="category-text-wrapper">
-              <h5>${t.functionalLabel}</h5>
-              <p>${t.functionalDesc}</p>
-            </div>
-            <div class="toggle-switch" id="functional-toggle"><div class="toggle-slider"></div></div>
-          </div>
-          <div class="cookie-category-card" data-handling="vaxla" data-reglage="marketing-toggle">
-            <div class="category-text-wrapper">
-              <h5>${t.marketingLabel}</h5>
-              <p>${t.marketingDesc}</p>
-            </div>
-            <div class="toggle-switch" id="marketing-toggle"><div class="toggle-slider"></div></div>
-          </div>
+          ${kategoriKort()}
         </div>
       </div>
       <div class="scroll-shadow" id="bottom-shadow"></div>
@@ -257,7 +270,7 @@ function injectBannerHTML() {
       </div>
     </div>
 
-    <div class="cookie" id="${POLICY_ID}" style="display: none;">
+    <div class="cookie" id="${POLICY_ID}" style="display: none;" role="dialog" tabindex="-1" aria-labelledby="policy-version-title">
       <div class="cookie-header">
         <div class="cookie-icon-container">${cookieIconSVG}</div>
         <h2 id="policy-version-title">${t.policyTitle}</h2>
@@ -293,6 +306,7 @@ function injectBannerHTML() {
   shadow.appendChild(mall.content);
 
   kopplaHandelser();
+  kopplaTangentbord();
 }
 
 // En enda lyssnare pa skuggroten i stallet for atta inline-onclick. Klick
@@ -387,6 +401,57 @@ function getOrCreateClientId() {
 // BANNER VISIBILITY CONTROL
 //========================================================================
 
+// Fokushantering.
+//
+// Utan detta hander ingenting for den som navigerar med tangentbord nar en ruta
+// oppnas: fokus star kvar dar det stod, och rutan ar i praktiken osynlig. Vid
+// stangning ska fokus tillbaka dit det kom ifran, annars kastas anvandaren ut
+// till sidans borjan.
+//
+// Rutorna ar INTE modala - sidan bakom gar fortfarande att anvanda. Darfor
+// fangas fokus inte in, och aria-modal satts inte. En cookiebanner som lasar
+// hela sidan ar dessutom tveksam ur samtyckessynpunkt.
+let fokusFore = null;
+
+function flyttaFokusTill(ruta) {
+  if (!ruta) return;
+  // Fokus gar till RUTAN, inte till forsta knappen. Da laser skarmlasaren upp
+  // rubriken (via aria-labelledby) i stallet for att kasta in anvandaren mitt i
+  // en knapprad. Rutorna har darfor tabindex="-1".
+  //
+  // Forsta forsoket tog forsta <button> - men det ar den inaktiverade
+  // nodvandig-knappen, och inaktiverade element kan inte ta emot fokus. Fokus
+  // hamnade darfor ingenstans alls.
+  ruta.focus();
+}
+
+function kommIhagFokus() {
+  const aktiv = shadow && shadow.activeElement ? shadow.activeElement : document.activeElement;
+  if (aktiv) fokusFore = aktiv;
+}
+
+function aterstallFokus() {
+  if (fokusFore && typeof fokusFore.focus === 'function') fokusFore.focus();
+  fokusFore = null;
+}
+
+// Escape stanger den oppna rutan. Forvantat beteende for allt som ser ut som
+// en dialog, och WCAG 2.1.2: man ska alltid kunna ta sig ut med tangentbordet.
+function kopplaTangentbord() {
+  shadow.addEventListener('keydown', (handelse) => {
+    if (handelse.key !== 'Escape') return;
+    const installningar = el(SETTINGS_ID);
+    const policy = el(POLICY_ID);
+    if (policy && policy.style.display !== 'none') {
+      handelse.preventDefault();
+      closePolicy();
+    } else if (installningar && installningar.style.display !== 'none') {
+      handelse.preventDefault();
+      backToBanner();
+    }
+  });
+}
+
 function hideAllBanners() {
   el(BANNER_ID).style.display = 'none';
   el(SETTINGS_ID).style.display = 'none';
@@ -399,13 +464,19 @@ function showCookieBanner() {
 }
 
 function showSettingsModal() {
+  kommIhagFokus();
   hideAllBanners();
-  el(SETTINGS_ID).style.display = 'flex';
+  const ruta = el(SETTINGS_ID);
+  ruta.style.display = 'flex';
+  flyttaFokusTill(ruta);
 }
 
 function showPolicyModal() {
+  kommIhagFokus();
   hideAllBanners();
-  el(POLICY_ID).style.display = 'flex';
+  const ruta = el(POLICY_ID);
+  ruta.style.display = 'flex';
+  flyttaFokusTill(ruta);
 }
 
 //========================================================================
@@ -641,6 +712,7 @@ function openSettings() {
     const element = el(id);
     if (element) {
       element.classList.toggle('active', isActive);
+      element.setAttribute('aria-checked', isActive ? 'true' : 'false');
     }
   };
 
@@ -719,6 +791,7 @@ function saveSettings() {
 
 function backToBanner() {
   showCookieBanner();
+  aterstallFokus();
 }
 
 function closePolicy() {
@@ -727,12 +800,15 @@ function closePolicy() {
   } else {
     showCookieBanner();
   }
+  aterstallFokus();
 }
 
 function toggleCookie(element) {
-  if (element) {
-    element.classList.toggle('active');
-  }
+  if (!element) return;
+  const pa = element.classList.toggle('active');
+  // aria-checked ar det ENDA en skarmlasare ser. Halls den inte i takt med
+  // klassen laser den upp fel svar - tyst, och varre an inget svar alls.
+  element.setAttribute('aria-checked', pa ? 'true' : 'false');
 }
 
 //========================================================================

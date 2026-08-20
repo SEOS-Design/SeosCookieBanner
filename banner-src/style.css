@@ -36,6 +36,15 @@
   --btn-line-height: 1.2;
   --header-line-height: 1.2;
 
+  /* Fokusmarkering. Egen variabel sa en sajt kan gora den synlig mot sin egen
+     bakgrund - en ring som inte syns ar samma sak som ingen ring. */
+  /* Brodtextfargen, inte currentColor: pa en knapp med ljus text hade ringen
+     ritats ljus mot bannerns ljusa bakgrund och blivit osynlig. --text-main
+     maste per definition kontrastera mot --bg-main. */
+  --fokus-ring: 2px solid var(--text-main);
+  --policy-link-color: var(--text-main);
+  --badge-text-color: var(--text-main);
+
   --toggle-switch-bg: #374151;
   --scroll-gradient: radial-gradient(
     ellipse at bottom,
@@ -284,8 +293,14 @@ button:hover {
   color: inherit;
   transition: transform 0.3s ease;
 }
+/* Egen variabel, och INTE --accent-color som forut. Accentfargen anvands ocksa
+   som knappbakgrund, sa den ar vald for att text ska synas OVANPA den - inte
+   for att sjalv vara lasbar text. Pa standardtemat gav det 3,46:1 mot
+   bakgrunden dar WCAG kraver 4,5:1. Standardvardet ar nu brodtextfargen, som
+   per definition maste kontrastera mot bakgrunden. Understrykningen gor att
+   lanken anda gar att skilja fran vanlig text. */
 .policy-link {
-  color: var(--accent-color);
+  color: var(--policy-link-color);
   text-decoration: none;
   transition: filter 0.2s;
   border-bottom: 1px solid currentColor;
@@ -326,14 +341,38 @@ button:hover {
 }
 
 /* TOGGLES */
+/* Reglaget ar en <button role="switch"> sedan C8. Den arver darfor knapp-
+   reglerna ovan (padding, inline-flex, ram) och maste nollstalla dem. */
 .toggle-switch {
   width: 44px;
   height: 24px;
+  min-width: 44px;
+  padding: 0;
+  border: none;
+  display: block;
   background: var(--toggle-switch-bg);
   border-radius: var(--radius-md);
   position: relative;
   cursor: pointer;
   flex-shrink: 0;
+}
+
+/* Fokus maste SYNAS. Utan detta vet den som anvander tangentbord inte var hen
+   ar - WCAG 2.4.7. :focus-visible visar ringen for tangentbord men inte vid
+   musklick. Ringen ligger utanfor elementet sa den syns aven pa smaknappar. */
+:focus-visible {
+  outline: var(--fokus-ring);
+  outline-offset: 2px;
+}
+
+/* Respektera systemets installning for minskad rorelse - WCAG 2.3.3. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }
 
 .toggle-slider {
@@ -366,7 +405,11 @@ button:hover {
   line-height: 1.4; /* explicit sa kundens radhojd inte styr badgens hojd */
   padding: 2px 6px;
   border-radius: 4px;
-  color: var(--text-muted);
+  /* Brodtextfargen, inte den dampade. Badgen ligger pa --bg-logo-wrapper, en
+     mellanton, och dampad text pa mellanton gav 2,19:1 dar WCAG kraver 4,5.
+     Egen variabel sa en sajt vars logotypruta har annan ljushet kan ratta till
+     det - kontrasten beror pa kundens fargval och gar inte att garantera har. */
+  color: var(--badge-text-color);
 }
 
 /* UI-kansla: ingen textmarkering pa kontroller och etiketter.

@@ -675,6 +675,15 @@
   --btn-line-height: 1.2;
   --header-line-height: 1.2;
 
+  /* Fokusmarkering. Egen variabel sa en sajt kan gora den synlig mot sin egen
+     bakgrund - en ring som inte syns ar samma sak som ingen ring. */
+  /* Brodtextfargen, inte currentColor: pa en knapp med ljus text hade ringen
+     ritats ljus mot bannerns ljusa bakgrund och blivit osynlig. --text-main
+     maste per definition kontrastera mot --bg-main. */
+  --fokus-ring: 2px solid var(--text-main);
+  --policy-link-color: var(--text-main);
+  --badge-text-color: var(--text-main);
+
   --toggle-switch-bg: #374151;
   --scroll-gradient: radial-gradient(
     ellipse at bottom,
@@ -923,8 +932,14 @@ button:hover {
   color: inherit;
   transition: transform 0.3s ease;
 }
+/* Egen variabel, och INTE --accent-color som forut. Accentfargen anvands ocksa
+   som knappbakgrund, sa den ar vald for att text ska synas OVANPA den - inte
+   for att sjalv vara lasbar text. Pa standardtemat gav det 3,46:1 mot
+   bakgrunden dar WCAG kraver 4,5:1. Standardvardet ar nu brodtextfargen, som
+   per definition maste kontrastera mot bakgrunden. Understrykningen gor att
+   lanken anda gar att skilja fran vanlig text. */
 .policy-link {
-  color: var(--accent-color);
+  color: var(--policy-link-color);
   text-decoration: none;
   transition: filter 0.2s;
   border-bottom: 1px solid currentColor;
@@ -965,14 +980,38 @@ button:hover {
 }
 
 /* TOGGLES */
+/* Reglaget ar en <button role="switch"> sedan C8. Den arver darfor knapp-
+   reglerna ovan (padding, inline-flex, ram) och maste nollstalla dem. */
 .toggle-switch {
   width: 44px;
   height: 24px;
+  min-width: 44px;
+  padding: 0;
+  border: none;
+  display: block;
   background: var(--toggle-switch-bg);
   border-radius: var(--radius-md);
   position: relative;
   cursor: pointer;
   flex-shrink: 0;
+}
+
+/* Fokus maste SYNAS. Utan detta vet den som anvander tangentbord inte var hen
+   ar - WCAG 2.4.7. :focus-visible visar ringen for tangentbord men inte vid
+   musklick. Ringen ligger utanfor elementet sa den syns aven pa smaknappar. */
+:focus-visible {
+  outline: var(--fokus-ring);
+  outline-offset: 2px;
+}
+
+/* Respektera systemets installning for minskad rorelse - WCAG 2.3.3. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }
 
 .toggle-slider {
@@ -1005,7 +1044,11 @@ button:hover {
   line-height: 1.4; /* explicit sa kundens radhojd inte styr badgens hojd */
   padding: 2px 6px;
   border-radius: 4px;
-  color: var(--text-muted);
+  /* Brodtextfargen, inte den dampade. Badgen ligger pa --bg-logo-wrapper, en
+     mellanton, och dampad text pa mellanton gav 2,19:1 dar WCAG kraver 4,5.
+     Egen variabel sa en sajt vars logotypruta har annan ljushet kan ratta till
+     det - kontrasten beror pa kundens fargval och gar inte att garantera har. */
+  color: var(--badge-text-color);
 }
 
 /* UI-kansla: ingen textmarkering pa kontroller och etiketter.
@@ -1281,6 +1324,34 @@ button:hover {
     let metaPixelLoaded = false;
     const pageLang = (window.SEOS_COOKIE_LANG || document.documentElement.lang || "").split("-")[0].toLowerCase();
     const t = translations[pageLang] || translations["en"];
+    function kategoriKort() {
+      const kategorier = [
+        {
+          id: "necessary",
+          etikett: `${t.necessaryLabel} <span class="badge">${t.requiredBadge}</span>`,
+          text: t.necessaryDesc,
+          last: true
+        },
+        { id: "performance", reglage: "performance-toggle", etikett: t.analyticsLabel, text: t.analyticsDesc },
+        { id: "functional", reglage: "functional-toggle", etikett: t.functionalLabel, text: t.functionalDesc },
+        { id: "marketing", reglage: "marketing-toggle", etikett: t.marketingLabel, text: t.marketingDesc }
+      ];
+      return kategorier.map((k) => {
+        const kortAttribut = k.last ? "" : ` data-handling="vaxla" data-reglage="${k.reglage}"`;
+        const knappAttribut = k.last ? 'class="toggle-switch always-active" aria-checked="true" disabled' : `class="toggle-switch" id="${k.reglage}" aria-checked="false"`;
+        return `
+          <div class="cookie-category-card"${kortAttribut}>
+            <div class="category-text-wrapper">
+              <h5 id="etikett-${k.id}">${k.etikett}</h5>
+              <p id="text-${k.id}">${k.text}</p>
+            </div>
+            <button type="button" role="switch" ${knappAttribut}
+              aria-labelledby="etikett-${k.id}" aria-describedby="text-${k.id}">
+              <span class="toggle-slider"></span>
+            </button>
+          </div>`;
+      }).join("");
+    }
     function injectBannerHTML() {
       if (document.getElementById(HOST_ID)) return;
       const cookieIconSVG = `
@@ -1297,12 +1368,12 @@ button:hover {
   d="M15 22V22.01" />
       </svg>`;
       const bannerHTML = `
-  <section class="cookie-section">
+  <section class="cookie-section" lang="${pageLang || "en"}">
 
-    <div class="cookie" id="${BANNER_ID}" style="display: none;">
+    <div class="cookie" id="${BANNER_ID}" style="display: none;" role="dialog" tabindex="-1" aria-labelledby="rubrik-banner">
       <div class="cookie-header">
         <div class="cookie-icon-container">${cookieIconSVG}</div>
-        <h2>${t.bannerTitle}</h2>
+        <h2 id="rubrik-banner">${t.bannerTitle}</h2>
       </div>
       <div class="cookie-content">
         <div class="cookie-body">
@@ -1328,44 +1399,17 @@ button:hover {
       </div>
     </div>
 
-    <div class="cookie" id="${SETTINGS_ID}" style="display: none;">
+    <div class="cookie" id="${SETTINGS_ID}" style="display: none;" role="dialog" tabindex="-1" aria-labelledby="rubrik-installningar">
       <div class="cookie-header">
         <div class="cookie-icon-container">${cookieIconSVG}</div>
-        <h2>${t.settingsTitle}</h2>
+        <h2 id="rubrik-installningar">${t.settingsTitle}</h2>
       </div>
       <div class="cookie-content" id="scroll-area">
         <div class="cookie-body">
           <p>${t.settingsBody}</p>
         </div>
         <div id="settings-container" class="cookie-settings-container">
-          <div class="cookie-category-card">
-            <div class="category-text-wrapper">
-              <h5>${t.necessaryLabel} <span class="badge">${t.requiredBadge}</span></h5>
-              <p>${t.necessaryDesc}</p>
-            </div>
-            <div class="toggle-switch always-active"><div class="toggle-slider"></div></div>
-          </div>
-          <div class="cookie-category-card" data-handling="vaxla" data-reglage="performance-toggle">
-            <div class="category-text-wrapper">
-              <h5>${t.analyticsLabel}</h5>
-              <p>${t.analyticsDesc}</p>
-            </div>
-            <div class="toggle-switch" id="performance-toggle"><div class="toggle-slider"></div></div>
-          </div>
-          <div class="cookie-category-card" data-handling="vaxla" data-reglage="functional-toggle">
-            <div class="category-text-wrapper">
-              <h5>${t.functionalLabel}</h5>
-              <p>${t.functionalDesc}</p>
-            </div>
-            <div class="toggle-switch" id="functional-toggle"><div class="toggle-slider"></div></div>
-          </div>
-          <div class="cookie-category-card" data-handling="vaxla" data-reglage="marketing-toggle">
-            <div class="category-text-wrapper">
-              <h5>${t.marketingLabel}</h5>
-              <p>${t.marketingDesc}</p>
-            </div>
-            <div class="toggle-switch" id="marketing-toggle"><div class="toggle-slider"></div></div>
-          </div>
+          ${kategoriKort()}
         </div>
       </div>
       <div class="scroll-shadow" id="bottom-shadow"></div>
@@ -1378,7 +1422,7 @@ button:hover {
       </div>
     </div>
 
-    <div class="cookie" id="${POLICY_ID}" style="display: none;">
+    <div class="cookie" id="${POLICY_ID}" style="display: none;" role="dialog" tabindex="-1" aria-labelledby="policy-version-title">
       <div class="cookie-header">
         <div class="cookie-icon-container">${cookieIconSVG}</div>
         <h2 id="policy-version-title">${t.policyTitle}</h2>
@@ -1406,6 +1450,7 @@ button:hover {
       mall.innerHTML = bannerHTML;
       shadow.appendChild(mall.content);
       kopplaHandelser();
+      kopplaTangentbord();
     }
     function kopplaHandelser() {
       const handlingar = {
@@ -1474,6 +1519,33 @@ button:hover {
       client_consent_id_cache = clientId;
       return clientId;
     }
+    let fokusFore = null;
+    function flyttaFokusTill(ruta) {
+      if (!ruta) return;
+      ruta.focus();
+    }
+    function kommIhagFokus() {
+      const aktiv = shadow && shadow.activeElement ? shadow.activeElement : document.activeElement;
+      if (aktiv) fokusFore = aktiv;
+    }
+    function aterstallFokus() {
+      if (fokusFore && typeof fokusFore.focus === "function") fokusFore.focus();
+      fokusFore = null;
+    }
+    function kopplaTangentbord() {
+      shadow.addEventListener("keydown", (handelse) => {
+        if (handelse.key !== "Escape") return;
+        const installningar = el(SETTINGS_ID);
+        const policy = el(POLICY_ID);
+        if (policy && policy.style.display !== "none") {
+          handelse.preventDefault();
+          closePolicy();
+        } else if (installningar && installningar.style.display !== "none") {
+          handelse.preventDefault();
+          backToBanner();
+        }
+      });
+    }
     function hideAllBanners() {
       el(BANNER_ID).style.display = "none";
       el(SETTINGS_ID).style.display = "none";
@@ -1484,12 +1556,18 @@ button:hover {
       el(BANNER_ID).style.display = "flex";
     }
     function showSettingsModal() {
+      kommIhagFokus();
       hideAllBanners();
-      el(SETTINGS_ID).style.display = "flex";
+      const ruta = el(SETTINGS_ID);
+      ruta.style.display = "flex";
+      flyttaFokusTill(ruta);
     }
     function showPolicyModal() {
+      kommIhagFokus();
       hideAllBanners();
-      el(POLICY_ID).style.display = "flex";
+      const ruta = el(POLICY_ID);
+      ruta.style.display = "flex";
+      flyttaFokusTill(ruta);
     }
     function acceptAllConsent() {
       const clientId = getOrCreateClientId();
@@ -1661,6 +1739,7 @@ button:hover {
         const element = el(id);
         if (element) {
           element.classList.toggle("active", isActive);
+          element.setAttribute("aria-checked", isActive ? "true" : "false");
         }
       };
       applyToggleState("performance-toggle", choices.analytics);
@@ -1718,6 +1797,7 @@ button:hover {
     }
     function backToBanner() {
       showCookieBanner();
+      aterstallFokus();
     }
     function closePolicy() {
       if (getCookie("consent_status")) {
@@ -1725,11 +1805,12 @@ button:hover {
       } else {
         showCookieBanner();
       }
+      aterstallFokus();
     }
     function toggleCookie(element) {
-      if (element) {
-        element.classList.toggle("active");
-      }
+      if (!element) return;
+      const pa = element.classList.toggle("active");
+      element.setAttribute("aria-checked", pa ? "true" : "false");
     }
     async function showPolicy() {
       const domain = window.location.hostname;
