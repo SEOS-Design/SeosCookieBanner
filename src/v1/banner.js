@@ -704,23 +704,34 @@
      och ett annat for brodtext. Satt bada explicit for att lasa utseendet. */
   --main-font: inherit;
   --header-font: var(--main-font);
-  --header-text-size: clamp(1.125rem, 0.9946rem + 0.6522vw, 1.5rem);
-  --body-text-size: clamp(0.875rem, 0.788rem + 0.4348vw, 1.125rem);
-  --badge-text-size: 10px;
-  --small-text-size: 12px;
+  /* GEOMETRI harifran och ner. Ska vara LIKA pa alla sajter - bannern ska
+     kannas som samma komponent overallt. Overstyr inte dessa per kund; ratta
+     i stallet basvardet har, sa naar andringen alla. Det som far variera per
+     sajt ar varumarket: typsnitt, radier och farger.
 
-  /* Layout and distance */
-  --icon-container-size: clamp(2.5rem, 2.3913rem + 0.5435vw, 3rem);
-  --banner-width: 850px;
+     Varden hamtade fran brevenshus 2026-08-20, som var nedskalade for hand.
+     De gamla basvardena (850 px, 18 px brodtext) gav en pafallande stor
+     banner - synligt pa seosdesign, som kor pa basen. */
+  --header-text-size: clamp(1rem, 0.95rem + 0.22vw, 1.1875rem);
+  --body-text-size: clamp(0.8125rem, 0.78rem + 0.16vw, 0.9375rem);
+  --badge-text-size: 0.625rem;
+  --small-text-size: 0.75rem;
+
+  --icon-container-size: clamp(2.125rem, 2rem + 0.4vw, 2.5rem);
+  --banner-width: 640px;
+
+  /* Radierna hor till VARUMARKET, inte geometrin - en sajt med pillerformade
+     knappar ska kunna ha det aven i bannern. Overstyr fritt per sajt. */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
-  /* Spacing scale from 320px to 1240px */
-  --space-xs: clamp(0.5rem, 0.4565rem + 0.2174vw, 0.625rem); /* 8px -> 10px */
-  --space-sm: clamp(0.75rem, 0.663rem + 0.4348vw, 1rem); /* 12px -> 16px */
-  --space-md: clamp(1rem, 0.8261rem + 0.8696vw, 1.5rem); /* 16px -> 24px */
-  --space-lg: clamp(1.5rem, 1.3261rem + 0.8696vw, 2rem); /* 24px -> 32px */
-  --space-xl: clamp(2rem, 1.6522rem + 1.7391vw, 3rem);
+
+  /* Avstandsskala, 320px -> 1240px. Geometri: lika overallt. */
+  --space-xs: clamp(0.375rem, 0.35rem + 0.1vw, 0.5rem);
+  --space-sm: clamp(0.625rem, 0.59rem + 0.15vw, 0.75rem);
+  --space-md: clamp(0.75rem, 0.68rem + 0.3vw, 1rem);
+  --space-lg: clamp(1rem, 0.9rem + 0.45vw, 1.375rem);
+  --space-xl: clamp(1.5rem, 1.35rem + 0.6vw, 2rem);
 }
 
 .light-theme {
