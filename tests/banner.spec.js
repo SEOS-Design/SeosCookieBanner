@@ -268,6 +268,36 @@ test.describe('Isolering fran kundens CSS', () => {
     expect(decodeURIComponent(cookies)).toContain('"marketing":false');
   });
 
+  // Fore isoleringen lag bannern i kundens sida och arvde deras globala reset.
+  // Webflow satter box-sizing: border-box och far knappar att arva typsnitt, sa
+  // bannern sag ratt ut utan att sjalv be om det. Utestangd foll knapparna
+  // tillbaka pa webblasarens Arial - upptackt forst i produktion.
+  //
+  // Testet kor mot en sida HELT utan CSS: finns ingen reset att luta sig mot
+  // maste bannern bara sitt eget.
+  test('bannern klarar sig utan reset fran sidan', async ({ page }) => {
+    await medSkugga(page);
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    const s = await page.evaluate(() => {
+      const knapp = getComputedStyle(skugga().querySelector('#cookie-banner .btn-save'));
+      const kort = getComputedStyle(skugga().querySelector('.cookie'));
+      const rubrik = getComputedStyle(skugga().querySelector('.cookie-header h2'));
+      return {
+        knappFont: knapp.fontFamily,
+        knappRadhojd: knapp.lineHeight,
+        boxSizing: kort.boxSizing,
+        rubrikRadhojd: rubrik.lineHeight,
+      };
+    });
+
+    expect(s.knappFont).toContain('Mona Sans Narrow');
+    expect(s.knappRadhojd).not.toBe('normal');
+    expect(s.boxSizing).toBe('border-box');
+    expect(s.rubrikRadhojd).not.toBe('normal');
+  });
+
   test('bannerns CSS paverkar inte kundens egna knappar', async ({ page }) => {
     // Fore C3 lag var stilmall i kundens <head> med en naken button-regel, och
     // formade om varje knapp pa sajten. Uppmatt pa seosdesign.se: 21 skillnader.

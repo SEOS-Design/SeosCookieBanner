@@ -670,6 +670,11 @@
   --btn-secondary-hover-bg: var(--bg-customize-btn);
   --btn-secondary-hover-filter: var(--btn-hover-filter);
 
+  /* Radhojder. Lag tidigare i kundens egen reset och skilde sig darfor mellan
+     sajterna. Nu bannerns eget varde, lika overallt - och stallbart per sajt. */
+  --btn-line-height: 1.2;
+  --header-line-height: 1.2;
+
   --toggle-switch-bg: #374151;
   --scroll-gradient: radial-gradient(
     ellipse at bottom,
@@ -724,6 +729,18 @@
     rgba(0, 0, 0, 0.04) 40%,
     transparent 80%
   );
+}
+
+/* Egen aterstallning INUTI skuggan.
+   Fore isoleringen lag bannern i kundens sida och arvde deras globala reset -
+   Webflow satter box-sizing: border-box och far knappar att arva typsnitt.
+   Det markte vi aldrig, for det fanns alltid nagon annans reset att luta sig
+   mot. Utestangd blir bannern beroende av webblasarens standardvarden i
+   stallet, och knapparna foll tillbaka pa Arial. Nu bar bannern sitt eget. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 .dark-bg {
@@ -810,6 +827,7 @@
   margin: 0;
   font-size: var(--header-text-size);
   font-weight: 700;
+  line-height: var(--header-line-height);
   text-transform: none;
 }
 .cookie-body p {
@@ -831,6 +849,10 @@
 }
 /* BASE STYLES FOR ALL BUTTONS */
 button {
+  /* Knappar arver INTE typsnitt av sig sjalva - webblasaren ger dem Arial.
+     Fore isoleringen fixade kundens reset det at oss. */
+  font-family: inherit;
+  line-height: var(--btn-line-height);
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-md);
   font-size: var(--body-text-size);
