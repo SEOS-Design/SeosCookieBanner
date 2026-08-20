@@ -477,6 +477,76 @@ test.describe('Retry-ko for missade samtycken', () => {
     return forsok;
   }
 
+  // Kravet fran Bjorn, och det viktigaste i hela C4: ligger nagot nere ska
+  // BESOKAREN inte marka av det. Bannern ska forsvinna, taggarna staller om,
+  // och inget felmeddelande syns. Var bevislogg ar vart problem, inte kundens
+  // besokares.
+  test('besokaren markar ingenting nar API:t ar nere', async ({ page }) => {
+    const synligaFel = [];
+    page.on('pageerror', (e) => synligaFel.push(e.message));
+    await apiNere(page);
+
+    // Samma gtag-uppsattning som kundsajterna har i sitt consent-default-block.
+    await page.addInitScript(() => {
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = function () {
+        window.dataLayer.push(arguments);
+      };
+    });
+
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    await knapp.acceptera(page).click();
+
+    // 1. Bannern forsvinner - direkt, utan att vanta pa natverket.
+    await expect(page.locator('#cookie-banner')).toBeHidden({ timeout: 2000 });
+    await expect(page.locator('#cookie-settings')).toBeHidden();
+    await expect(page.locator('#cookie-policy')).toBeHidden();
+
+    // 2. Valet tillampas anda - Google far signalen lokalt, utan var server.
+    const gtagAnrop = await page.evaluate(() =>
+      (window.dataLayer || []).map((a) => Array.from(a).join(':')).join(' | '),
+    );
+    expect(gtagAnrop).toContain('consent:update');
+
+    // 3. Inga JavaScript-fel som kan stora sajten omkring.
+    expect(synligaFel).toEqual([]);
+
+    // 4. Och den nya vinsten: bannern kommer inte tillbaka om en timme.
+    //
+    //    Att bara ladda om sidan bevisar ingenting - en timgammal cookie ar
+    //    giltig da ocksa. Utgangstiden ar det enda som skiljer gammalt fran
+    //    nytt, sa den mats direkt.
+    const cookie = (await page.context().cookies()).find((c) => c.name === 'consent_status');
+    const dagarKvar = (cookie.expires * 1000 - Date.now()) / 86400000;
+    expect(dagarKvar).toBeGreaterThan(25);
+  });
+
+  test('fungerar aven nar localStorage ar avstangt', async ({ page }) => {
+    // Privat lage eller hard sekretessinstallning. Kon kan da inte sparas -
+    // men samtycket ska anda ga igenom och bannern forsvinna.
+    const synligaFel = [];
+    page.on('pageerror', (e) => synligaFel.push(e.message));
+    await page.addInitScript(() => {
+      const kasta = () => {
+        throw new Error('localStorage avstangt');
+      };
+      Object.defineProperty(window, 'localStorage', {
+        configurable: true,
+        get: () => ({ getItem: kasta, setItem: kasta, removeItem: kasta }),
+      });
+    });
+    await apiNere(page);
+
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    await knapp.acceptera(page).click();
+
+    await expect(page.locator('#cookie-banner')).toBeHidden({ timeout: 2000 });
+    expect(synligaFel).toEqual([]);
+    expect(await page.evaluate(() => document.cookie)).toContain('consent_status=all');
+  });
+
   test('samtycket koas nar API:t inte svarar', async ({ page }) => {
     const forsok = await apiNere(page);
     await page.goto(SIDA.utanPixel);
