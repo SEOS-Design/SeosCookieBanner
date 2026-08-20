@@ -5,6 +5,7 @@
   "scripts": {
     "build": "node build.js",
     "granska": "node tests/granska.js",
+    "overvaka": "node tests/overvaka.js",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "test:report": "playwright show-report"

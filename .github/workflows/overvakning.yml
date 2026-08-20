@@ -1,0 +1,131 @@
+name: Syntetisk overvakning
+
+# Besoker kundsajterna varje timme som en riktig besokare och kontrollerar att
+# bannern FUNGERAR dar. Oppnar ett GitHub-issue nar nagot gatt sonder.
+#
+# Det har ar det enda skyddsnatet som svarar pa "fungerar bannern hos kunden
+# just nu?". CI svarar pa om koden ar ratt, uptime-pingen pa om API:t finns,
+# byggkontrollen pa om filen ar aktuell. Ingen av dem hade fangat brevenshus
+# 2026-08-03, dar bannern var helt dod pa kundens sajt medan koden var korrekt.
+#
+# Skriptet SKRIVER ingenting - inget samtycke skickas, sa kundernas bevislogg
+# fylls inte med robotsvar.
+#
+# En timme, inte 15 minuter: kontrollen oppnar policyn, vilket vacker Neon.
+# Databasen sover pa gratisplanen och varje vackning kostar berakningstid.
+# Behovs snabbare larm, byt "0 * * * *" mot "*/15 * * * *" - men gor da ocksa
+# policykontrollen mer sallan.
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+    inputs:
+      testlarm:
+        description: "Tvinga fram ett testlarm for att kontrollera att notiser kommer fram"
+        type: boolean
+        default: false
+
+permissions:
+  issues: write
+
+jobs:
+  overvaka:
+    name: Kontrollera kundsajterna
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Installera Playwright-browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Kontrollera sajterna
+        id: kontroll
+        env:
+          TESTLARM: ${{ inputs.testlarm }}
+        run: |
+          set +e
+          utdata=$(npm run overvaka --silent 2>&1)
+          kod=$?
+          echo "$utdata"
+
+          # Skriptet markerar sammanfattningen med ::brister:: sa den kan
+          # plockas ut har och hamna i issuet.
+          brister=$(echo "$utdata" | grep '^::brister::' | sed 's/^::brister:://')
+          {
+            echo "failed=$([ $kod -ne 0 ] && echo true || echo false)"
+            echo "brister<<SLUT"
+            echo "$brister"
+            echo "SLUT"
+          } >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Oppna eller uppdatera issue
+        if: steps.kontroll.outputs.failed == 'true'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const raw = `${{ steps.kontroll.outputs.brister }}`;
+            const brister = raw.replace(/%0A/g, "\n");
+            const arTest = brister.includes("TESTLARM");
+
+            const title = arTest
+              ? "🧪 Testlarm: kontroll av notiskedjan"
+              : "🔴 Bannern fungerar inte pa en kundsajt";
+
+            const body = arTest
+              ? [
+                  "Det har ar **inget riktigt fel**. Nagon korde workflowen manuellt med",
+                  "rutan `testlarm` ikryssad for att kontrollera att larm nar fram.",
+                  "",
+                  `- **Tidpunkt:** ${new Date().toISOString()}`,
+                  "",
+                  "Fick du ett mejl om det har issuet fungerar kedjan. Stang issuet.",
+                ].join("\n")
+              : [
+                  "Den syntetiska overvakningen hittade fel pa minst en kundsajt.",
+                  "",
+                  brister,
+                  "",
+                  `- **Tidpunkt:** ${new Date().toISOString()}`,
+                  "",
+                  "**Detta ar skarpt.** Kontrollen besoker sajterna som en besokare,",
+                  "sa felet syns for riktiga besokare just nu.",
+                  "",
+                  "Felsok lokalt med `npm run overvaka`, och `npm run granska -- <adress>`",
+                  "for tillganglighet. Kors varje timme via",
+                  "`.github/workflows/overvakning.yml`.",
+                ].join("\n");
+
+            const oppna = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "overvakning",
+            });
+
+            if (oppna.data.length > 0) {
+              // Kommentera i stallet for nytt issue, sa ett langre fel inte
+              // fyller listan.
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: oppna.data[0].number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ["overvakning"],
+              });
+            }
