@@ -45,8 +45,13 @@
   );
   --icon-path: url('/src/Cookie Icon Wrapper.svg');
 
-  /* Typography */
+  /* Typography.
+     Typsnitten laddas av kundens sajt - bannern hamtar aldrig egna. Fore
+     isoleringen lackte sajtens typsnitt in i bannern av sig sjalva; nu maste
+     de anges. Egen variabel for rubriken, eftersom manga sajter har ett
+     typsnitt for rubriker och ett annat for brodtext. */
   --main-font: 'Mona Sans Narrow', sans-serif;
+  --header-font: var(--main-font);
   --header-text-size: clamp(1.125rem, 0.9946rem + 0.6522vw, 1.5rem);
   --body-text-size: clamp(0.875rem, 0.788rem + 0.4348vw, 1.125rem);
   --badge-text-size: 10px;
@@ -186,6 +191,7 @@
 
 .cookie h2 {
   margin: 0;
+  font-family: var(--header-font);
   font-size: var(--header-text-size);
   font-weight: 700;
   line-height: var(--header-line-height);
