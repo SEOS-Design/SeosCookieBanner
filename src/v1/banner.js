@@ -685,11 +685,15 @@
   --icon-path: url('/src/Cookie Icon Wrapper.svg');
 
   /* Typography.
-     Typsnitten laddas av kundens sajt - bannern hamtar aldrig egna. Fore
-     isoleringen lackte sajtens typsnitt in i bannern av sig sjalva; nu maste
-     de anges. Egen variabel for rubriken, eftersom manga sajter har ett
-     typsnitt for rubriker och ett annat for brodtext. */
-  --main-font: 'Mona Sans Narrow', sans-serif;
+     Bannern ARVER sidans typsnitt som standard, med flit: den ska smalta in
+     pa sajten den hamnar pa, inte bara SEOS egna. Typsnitt ar en arvd
+     CSS-egenskap och passerar darfor skuggan, till skillnad fran vanliga
+     regler. Bannern laddar aldrig egna typsnitt - den anvander de sajten
+     redan har.
+
+     Egen variabel for rubriken: manga sajter har ett typsnitt for rubriker
+     och ett annat for brodtext. Satt bada explicit for att lasa utseendet. */
+  --main-font: inherit;
   --header-font: var(--main-font);
   --header-text-size: clamp(1.125rem, 0.9946rem + 0.6522vw, 1.5rem);
   --body-text-size: clamp(0.875rem, 0.788rem + 0.4348vw, 1.125rem);

@@ -163,12 +163,32 @@ test.describe('Isolering fran kundens CSS', () => {
       };
     });
 
-    expect(s.font).not.toContain('Comic Sans');
+    // OBS: typsnittet star INTE i listan. Det arvs in med flit - se nasta test.
     expect(s.position).toBe('fixed');
     expect(s.knappBg).not.toBe('rgb(255, 0, 255)'); // magenta
     expect(s.knappRadie).not.toBe('0px');
     expect(s.rubrikFarg).not.toBe('rgb(255, 0, 0)'); // rott
     expect(s.bannerVisas).toBe('flex');
+  });
+
+  // Bannern ska smalta in pa sajten den hamnar pa. Typsnitt ar en arvd
+  // CSS-egenskap och passerar skuggan, till skillnad fran vanliga regler -
+  // det ar alltsa ett medvetet undantag fran isoleringen, inte en lucka.
+  test('typsnittet arvs fran sidan, men gaar att laasa', async ({ page }) => {
+    await medSkugga(page);
+    const font = () =>
+      page.evaluate(() => getComputedStyle(skugga().querySelector('.cookie-section')).fontFamily);
+
+    // Sidan satter Comic Sans pa allt. Bannern ska folja med.
+    await page.goto(SIDA.kundCss);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    expect(await font()).toContain('Comic Sans');
+
+    // Men en sajt som vill lasa utseendet satter --main-font och vinner.
+    await page.addStyleTag({
+      content: "#cookie-sectionId { --main-font: 'Courier New', monospace; }",
+    });
+    expect(await font()).toContain('Courier New');
   });
 
   test('kundens CSS-variabler pa vardelementet slaar fortfarande igenom', async ({ page }) => {
@@ -280,19 +300,27 @@ test.describe('Isolering fran kundens CSS', () => {
     await page.goto(SIDA.utanPixel);
     await expect(page.locator('#cookie-banner')).toBeVisible();
 
+    // Sidan har ett eget typsnitt men ingen reset - alltsa inget som far
+    // knappar att arva det. Utan var egen regel far de webblasarens Arial.
+    await page.addStyleTag({ content: "body { font-family: 'Courier New', monospace; }" });
+
     const s = await page.evaluate(() => {
       const knapp = getComputedStyle(skugga().querySelector('#cookie-banner .btn-save'));
+      const sektion = getComputedStyle(skugga().querySelector('.cookie-section'));
       const kort = getComputedStyle(skugga().querySelector('.cookie'));
       const rubrik = getComputedStyle(skugga().querySelector('.cookie-header h2'));
       return {
         knappFont: knapp.fontFamily,
+        sektionFont: sektion.fontFamily,
         knappRadhojd: knapp.lineHeight,
         boxSizing: kort.boxSizing,
         rubrikRadhojd: rubrik.lineHeight,
       };
     });
 
-    expect(s.knappFont).toContain('Mona Sans Narrow');
+    // Knappen ska folja bannern, inte falla tillbaka pa webblasarens Arial.
+    expect(s.knappFont).toBe(s.sektionFont);
+    expect(s.knappFont).toContain('Courier New');
     expect(s.knappRadhojd).not.toBe('normal');
     expect(s.boxSizing).toBe('border-box');
     expect(s.rubrikRadhojd).not.toBe('normal');
