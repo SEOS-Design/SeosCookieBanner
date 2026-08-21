@@ -1,0 +1,139 @@
+name: Cookie-skanner
+
+# Besoker kundsajterna varje dygn och kontrollerar vad de gor med besokarens
+# enhet INNAN hen svarat i bannern. Oppnar ett GitHub-issue nar nagot satter
+# cookies eller kontaktar en kand sparare for tidigt.
+#
+# Varfor den finns: 2026-08-21 upptacktes att bada Webflow-sajterna satte _ga
+# med 400 dagars livslangd fore samtycke, eftersom Webflows Google-integration
+# injicerar sin snutt fore all anpassad huvudkod. Felet hade legat lange och
+# INGET skyddsnat hade fangat det - CI kontrollerar var kod, den syntetiska
+# overvakningen att bannern renderar, uptime att API:t finns. Ingen av dem
+# tittar pa vad kundens sajt gor fore samtycke.
+#
+# Ett dygn, inte en timme som den syntetiska overvakningen: felet uppstar nar
+# nagon andrar en installning pa kundens sajt, och det sker i manniskotakt.
+# Att skanna varje timme hade gett 24 ggr kostnaden for samma upptackt.
+#
+# SKRIVER INGENTING. Skannern klickar inte igenom i det har laget, sa varken
+# kundernas bevislogg eller deras GA-statistik far robotbesok.
+
+on:
+  schedule:
+    - cron: "20 6 * * *"
+  workflow_dispatch:
+    inputs:
+      testlarm:
+        description: "Tvinga fram ett testlarm for att kontrollera att notiser kommer fram"
+        type: boolean
+        default: false
+
+permissions:
+  issues: write
+
+jobs:
+  skanna:
+    name: Kontrollera cookies fore samtycke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Installera Playwright-browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Skanna sajterna
+        id: skanning
+        env:
+          TESTLARM: ${{ inputs.testlarm }}
+        run: |
+          set +e
+          utdata=$(npm run skanna --silent 2>&1)
+          kod=$?
+          echo "$utdata"
+
+          # Skriptet markerar sammanfattningen med ::brister:: sa den kan
+          # plockas ut har och hamna i issuet.
+          brister=$(echo "$utdata" | grep '^::brister::' | sed 's/^::brister:://')
+          {
+            echo "failed=$([ $kod -ne 0 ] && echo true || echo false)"
+            echo "brister<<SLUT"
+            echo "$brister"
+            echo "SLUT"
+          } >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Oppna eller uppdatera issue
+        if: steps.skanning.outputs.failed == 'true'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const raw = `${{ steps.skanning.outputs.brister }}`;
+            const brister = raw.replace(/%0A/g, "\n");
+            const arTest = brister.includes("TESTLARM");
+
+            const title = arTest
+              ? "🧪 Testlarm: kontroll av notiskedjan (cookie-skanner)"
+              : "🍪 Sparning fore samtycke pa en kundsajt";
+
+            const body = arTest
+              ? [
+                  "Det har ar **inget riktigt fel**. Nagon korde workflowen manuellt med",
+                  "rutan `testlarm` ikryssad for att kontrollera att larm nar fram.",
+                  "",
+                  `- **Tidpunkt:** ${new Date().toISOString()}`,
+                  "",
+                  "Fick du ett mejl om det har issuet fungerar kedjan. Stang issuet.",
+                ].join("\n")
+              : [
+                  "Cookie-skannern hittade sparning **innan besokaren samtyckt**.",
+                  "",
+                  brister,
+                  "",
+                  `- **Tidpunkt:** ${new Date().toISOString()}`,
+                  "",
+                  "**Detta ar ett efterlevnadsfel, inte en bugg i bannern.** Orsaken",
+                  "sitter nastan alltid pa kundens sajt: ett skript som laddas fore",
+                  "consent-blocket.",
+                  "",
+                  "Ar sajten byggd i Webflow, kontrollera **Apps & Integrations →**",
+                  "**Google tag** forst. Ligger ett mat-ID i det faltet injicerar",
+                  "Webflow sin snutt fore all anpassad huvudkod. Det var orsaken bada",
+                  "gangerna 2026-08-21.",
+                  "",
+                  "Felsok lokalt med `npm run skanna`, eller `npm run skanna -- --full`",
+                  "for att aven se vad sajten drar in efter ett ja. Kors dagligen via",
+                  "`.github/workflows/cookie-skanner.yml`.",
+                ].join("\n");
+
+            const oppna = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "cookie-skanner",
+            });
+
+            if (oppna.data.length > 0) {
+              // Kommentera i stallet for nytt issue, sa ett langre fel inte
+              // fyller listan.
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: oppna.data[0].number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ["cookie-skanner"],
+              });
+            }
