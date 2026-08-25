@@ -681,6 +681,10 @@
      ritats ljus mot bannerns ljusa bakgrund och blivit osynlig. --text-main
      maste per definition kontrastera mot --bg-main. */
   --fokus-ring: 2px solid var(--text-main);
+  /* Rullningsstapeln. Foljer --text-muted som standard, sa den anpassar sig
+     till varje sajts fargskala utan egen konfiguration - men gar att satta
+     for sig om den blir for stark eller for svag. */
+  --scrollbar-thumb: var(--text-muted);
   --policy-link-color: var(--text-main);
   --badge-text-color: var(--text-main);
 
@@ -824,14 +828,40 @@
   flex-direction: column;
   position: relative;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: none; /*Hides scrollbar on firefox*/
-  -ms-overflow-style: none; /* Hides scrollbar on Edge*/
+
+  /* SYNLIG SCROLLBAR, med flit.
+     Den var tidigare dold (scrollbar-width: none). Det sag renare ut men tog
+     bort den enda markeringen for att det finns mer att lasa - och i
+     policyrutan finns ingen annan: toningen i botten hor bara till
+     installningsrutan. Cirka 60 procent av policytexten ligger under kanten,
+     och sist av allt star vilken policyversion besokaren faktiskt fick se.
+     En besokare som tror att policyn ar fem avsnitt har blivit samre
+     informerad an en som ser att den ar nio.
+
+     Egen styling och inte webblasarens standard: pa macOS och iOS ar
+     scrollbars dolda tills man borjar rulla, alltsa precis nar de INTE
+     behovs. ::-webkit-scrollbar gor den bestandig. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
-/* Hides scrollbar on Chrome and Safari*/
 .cookie-content::-webkit-scrollbar {
-  display: none;
+  width: 8px;
 }
+
+.cookie-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cookie-content::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 999px;
+  /* Genomskinlig kant + padding-box gor stapeln smalare och indragen utan
+     att traffytan krymper. */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
 /* LOGO CONTAINER */
 .cookie-icon-container {
   display: flex;
@@ -1350,6 +1380,7 @@ button:hover {
       "btn-secondary-hover-bg",
       "btn-secondary-hover-filter",
       "fokus-ring",
+      "scrollbar-thumb",
       "policy-link-color",
       "badge-text-color",
       "scroll-gradient",
@@ -1563,6 +1594,7 @@ button:hover {
       shadow.appendChild(mall.content);
       kopplaHandelser();
       kopplaTangentbord();
+      kopplaRullning();
     }
     function kopplaHandelser() {
       const handlingar = {
@@ -1643,6 +1675,31 @@ button:hover {
     function aterstallFokus() {
       if (fokusFore && typeof fokusFore.focus === "function") fokusFore.focus();
       fokusFore = null;
+    }
+    function rullbarRuta(handelse) {
+      const vag = typeof handelse.composedPath === "function" ? handelse.composedPath() : [];
+      for (const nod of vag) {
+        if (nod === shadow || nod === shadow.host) break;
+        if (!nod || nod.nodeType !== 1) continue;
+        const stil = window.getComputedStyle(nod);
+        const rullbar = stil.overflowY === "auto" || stil.overflowY === "scroll";
+        if (rullbar && nod.scrollHeight > nod.clientHeight + 1) return nod;
+      }
+      return null;
+    }
+    function kopplaRullning() {
+      if (!shadow) return;
+      shadow.addEventListener(
+        "wheel",
+        (handelse) => {
+          const ruta = rullbarRuta(handelse);
+          if (!ruta) return;
+          const nedat = handelse.deltaY > 0;
+          const kanRullaVidare = nedat ? ruta.scrollTop < ruta.scrollHeight - ruta.clientHeight - 1 : ruta.scrollTop > 0;
+          if (kanRullaVidare) handelse.stopPropagation();
+        },
+        true
+      );
     }
     function kopplaTangentbord() {
       shadow.addEventListener("keydown", (handelse) => {

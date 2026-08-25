@@ -965,3 +965,133 @@ test.describe('Design fran databasen (C1 steg 1)', () => {
     expect(await bannerBakgrund(page)).toBe(BEIGE);
   });
 });
+
+test.describe('Rullning i policyrutan', () => {
+  /**
+   * Harmar ett bibliotek for mjuk rullning (Lenis, Locomotive, GSAP
+   * ScrollSmoother): en global lyssnare som tar hjulhandelsen och rullar
+   * sidan sjalv. Precis det som gor policyn olasbar pa www.brevenshus.se.
+   */
+  async function medMjukRullning(page) {
+    await page.addInitScript(() => {
+      window.__kapade = 0;
+      window.addEventListener(
+        'wheel',
+        (e) => {
+          window.__kapade++;
+          e.preventDefault();
+        },
+        { passive: false }
+      );
+    });
+  }
+
+  async function oppnaPolicy(page) {
+    await page.route('**/policy/latest*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          version: '1.0.3',
+          content:
+            '<div>' +
+            '<h3>Avsnitt</h3><p>' +
+            'Lang text. '.repeat(60) +
+            '</p>'.repeat(1) +
+            ('<h3>Mer</h3><p>' + 'Lang text. '.repeat(60) + '</p>').repeat(8) +
+            '</div>',
+        }),
+      })
+    );
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    await page.locator('#cookie-banner .policy-link').click();
+    await expect(page.locator('#cookie-policy')).toBeVisible();
+    await page.waitForFunction(() => {
+      const s = window.skugga();
+      const c = s.getElementById('policy-content-area');
+      return c && c.textContent.length > 400;
+    });
+    await page.waitForTimeout(300);
+  }
+
+  const rullning = (page) =>
+    page.evaluate(() =>
+      Math.round(window.skugga().getElementById('policy-content-area').parentElement.scrollTop)
+    );
+
+  const rullaMed = async (page, delta) => {
+    const box = await page.locator('#cookie-policy').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, delta);
+    await page.waitForTimeout(300);
+  };
+
+  test('policyn gaar att rulla aven med ett mjukrullningsbibliotek pa sidan', async ({ page }) => {
+    // Skarpt fel pa brevenshus 2026-08-21: Lenis kapade hjulet och cirka 60 %
+    // av policytexten gick inte att na. Sist av allt star policyversionen.
+    await medSkugga(page);
+    await medMjukRullning(page);
+    await oppnaPolicy(page);
+
+    expect(await rullning(page)).toBe(0);
+    await rullaMed(page, 400);
+    expect(await rullning(page)).toBeGreaterThan(10);
+  });
+
+  test('sidan bakom rullar fortfarande nar policyn ar slut', async ({ page }) => {
+    // Skyddet mot att fixen blir for girig. Utan villkoret "kan rutan rulla
+    // vidare?" hade muspekaren over bannern last sidan - och ett test som
+    // bara kontrollerar att policyn rullar hade inte upptackt det.
+    await medSkugga(page);
+    await medMjukRullning(page);
+    await oppnaPolicy(page);
+
+    // Rulla policyn hela vagen ner.
+    await page.evaluate(() => {
+      const b = window.skugga().getElementById('policy-content-area').parentElement;
+      b.scrollTop = b.scrollHeight;
+    });
+    await page.waitForTimeout(200);
+
+    const fore = await page.evaluate(() => window.__kapade);
+    await rullaMed(page, 400);
+    const efter = await page.evaluate(() => window.__kapade);
+
+    // Handelsen slapptes igenom till sidan, alltsa nadde den den globala
+    // lyssnaren. Hade vi behallit den hade raknaren statt stilla.
+    expect(efter).toBeGreaterThan(fore);
+  });
+
+  test('hjulet over bannern i viloläge rullar sidan, inte bannern', async ({ page }) => {
+    // Sjalva bannern ar inte rullbar. Da ska ingenting fangas alls.
+    await medSkugga(page);
+    await medMjukRullning(page);
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    const fore = await page.evaluate(() => window.__kapade);
+    const box = await page.locator('#cookie-banner').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, 300);
+    await page.waitForTimeout(300);
+
+    expect(await page.evaluate(() => window.__kapade)).toBeGreaterThan(fore);
+  });
+
+  test('rullningsstapeln syns och foljer sajtens fargskala', async ({ page }) => {
+    // Stapeln var tidigare dold med flit. Det sag renare ut men tog bort den
+    // enda markeringen for att det finns mer att lasa - och i policyrutan
+    // finns ingen annan, eftersom toningen bara hor till installningsrutan.
+    await medSkugga(page);
+    await oppnaPolicy(page);
+
+    const stil = await page.evaluate(() => {
+      const b = window.skugga().getElementById('policy-content-area').parentElement;
+      const s = getComputedStyle(b);
+      return { bredd: s.scrollbarWidth, farg: s.scrollbarColor };
+    });
+    expect(stil.bredd).not.toBe('none');
+    expect(stil.farg).not.toBe('auto');
+  });
+});

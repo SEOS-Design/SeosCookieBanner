@@ -179,7 +179,8 @@ import bannerCss from './style.css';
     'btn-secondary-hover-bg',
     'btn-secondary-hover-filter',
     'fokus-ring',
-    'policy-link-color',
+    'scrollbar-thumb',
+  'policy-link-color',
     'badge-text-color',
     'scroll-gradient',
     'main-font',
@@ -494,6 +495,7 @@ import bannerCss from './style.css';
 
     kopplaHandelser();
     kopplaTangentbord();
+    kopplaRullning();
   }
 
   // En enda lyssnare pa skuggroten i stallet for atta inline-onclick. Klick
@@ -624,6 +626,69 @@ import bannerCss from './style.css';
 
   // Escape stanger den oppna rutan. Forvantat beteende for allt som ser ut som
   // en dialog, och WCAG 2.1.2: man ska alltid kunna ta sig ut med tangentbordet.
+  //========================================================================
+  // RULLNING INUTI BANNERN
+  //========================================================================
+  //
+  // Bannern maste fungera pa vilken kundsajt som helst - aven pa sajter med
+  // ett bibliotek for MJUK RULLNING (Lenis, Locomotive, GSAP ScrollSmoother).
+  // De lyssnar pa hjulhandelser globalt och rullar sidan sjalva i stallet for
+  // att lata webblasaren gora det.
+  //
+  // ⚠️ SKARPT FEL, uppmatt pa www.brevenshus.se 2026-08-21: policyrutan gick
+  // INTE att rulla med mus. Cirka 60 procent av texten var oatkomlig, och
+  // sist av allt star vilken policyversion besokaren fick se. Ett samtycke
+  // ska vara informerat - texten maste ga att lasa i sin helhet fore valet.
+  //
+  // Orsaken ar Shadow DOM: for en lyssnare utanfor skuggan pekar
+  // event.target pa VARDELEMENTET, inte pa rutan inuti. Biblioteket kan
+  // darfor inte veta att det finns nagot rullbart darinne, tar handelsen och
+  // gor ingenting med den.
+  //
+  // Losningen ar avsiktligt kirurgisk: vi behaller handelsen BARA nar den
+  // inre rutan faktiskt kan rulla vidare at det hallet. Kan den inte det -
+  // rutan ar slut, eller det finns inget rullbart alls - slapps handelsen
+  // igenom och sidan bakom rullar som vanligt.
+  //
+  // Utan det villkoret hade rullningen kants klibbig: muspekaren over
+  // bannern hade last sidan. Ett eget test skyddar just det, eftersom ett
+  // test som bara kontrollerar att policyn rullar inte hade upptackt det.
+  //
+  // Losningen ar oberoende av vilket bibliotek kunden anvander - vi ror
+  // aldrig deras kod, bara var egen handelse.
+  function rullbarRuta(handelse) {
+    const vag = typeof handelse.composedPath === 'function' ? handelse.composedPath() : [];
+    for (const nod of vag) {
+      // Stanna vid skuggans kant: utanfor den ar det kundens sida.
+      if (nod === shadow || nod === shadow.host) break;
+      if (!nod || nod.nodeType !== 1) continue;
+      const stil = window.getComputedStyle(nod);
+      const rullbar = stil.overflowY === 'auto' || stil.overflowY === 'scroll';
+      if (rullbar && nod.scrollHeight > nod.clientHeight + 1) return nod;
+    }
+    return null;
+  }
+
+  function kopplaRullning() {
+    if (!shadow) return;
+    shadow.addEventListener(
+      'wheel',
+      (handelse) => {
+        const ruta = rullbarRuta(handelse);
+        if (!ruta) return;
+
+        const nedat = handelse.deltaY > 0;
+        const kanRullaVidare = nedat
+          ? ruta.scrollTop < ruta.scrollHeight - ruta.clientHeight - 1
+          : ruta.scrollTop > 0;
+
+        // Behall handelsen bara nar rutan har nagonstans att ta vagen.
+        if (kanRullaVidare) handelse.stopPropagation();
+      },
+      true
+    );
+  }
+
   function kopplaTangentbord() {
     shadow.addEventListener('keydown', (handelse) => {
       if (handelse.key !== 'Escape') return;

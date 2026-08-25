@@ -42,6 +42,10 @@
      ritats ljus mot bannerns ljusa bakgrund och blivit osynlig. --text-main
      maste per definition kontrastera mot --bg-main. */
   --fokus-ring: 2px solid var(--text-main);
+  /* Rullningsstapeln. Foljer --text-muted som standard, sa den anpassar sig
+     till varje sajts fargskala utan egen konfiguration - men gar att satta
+     for sig om den blir for stark eller for svag. */
+  --scrollbar-thumb: var(--text-muted);
   --policy-link-color: var(--text-main);
   --badge-text-color: var(--text-main);
 
@@ -185,14 +189,40 @@
   flex-direction: column;
   position: relative;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: none; /*Hides scrollbar on firefox*/
-  -ms-overflow-style: none; /* Hides scrollbar on Edge*/
+
+  /* SYNLIG SCROLLBAR, med flit.
+     Den var tidigare dold (scrollbar-width: none). Det sag renare ut men tog
+     bort den enda markeringen for att det finns mer att lasa - och i
+     policyrutan finns ingen annan: toningen i botten hor bara till
+     installningsrutan. Cirka 60 procent av policytexten ligger under kanten,
+     och sist av allt star vilken policyversion besokaren faktiskt fick se.
+     En besokare som tror att policyn ar fem avsnitt har blivit samre
+     informerad an en som ser att den ar nio.
+
+     Egen styling och inte webblasarens standard: pa macOS och iOS ar
+     scrollbars dolda tills man borjar rulla, alltsa precis nar de INTE
+     behovs. ::-webkit-scrollbar gor den bestandig. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
-/* Hides scrollbar on Chrome and Safari*/
 .cookie-content::-webkit-scrollbar {
-  display: none;
+  width: 8px;
 }
+
+.cookie-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cookie-content::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 999px;
+  /* Genomskinlig kant + padding-box gor stapeln smalare och indragen utan
+     att traffytan krymper. */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
 /* LOGO CONTAINER */
 .cookie-icon-container {
   display: flex;
