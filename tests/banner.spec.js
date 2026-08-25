@@ -95,7 +95,7 @@ test.describe('Allt ligger i en fil', () => {
 
     // Stilarna ska faktiskt tillampas, inte bara finnas i dokumentet.
     const position = await page.evaluate(
-      () => getComputedStyle(skugga().querySelector('.cookie-section')).position,
+      () => getComputedStyle(skugga().querySelector('.cookie-section')).position
     );
     expect(position).toBe('fixed');
 
@@ -115,7 +115,7 @@ test.describe('Allt ligger i en fil', () => {
             '<h3>Testpolicy</h3><script>window.__xss = true;<\/script>' +
             '<a href="https://exempel.se" target="_blank" rel="noopener">Lank</a>',
         }),
-      }),
+      })
     );
 
     await page.goto(SIDA.utanPixel);
@@ -221,11 +221,9 @@ test.describe('Isolering fran kundens CSS', () => {
     // Knapparna har transition: 0.2s, sa filtret maste hinna landa innan det
     // mats - annars fangas ett mellanvarde som brightness(1.014).
     const las = (sel) =>
-      expect
-        .poll(() =>
-          page.evaluate((s) => getComputedStyle(skugga().querySelector(s)).filter, sel),
-        )
-        .toBe;
+      expect.poll(() =>
+        page.evaluate((s) => getComputedStyle(skugga().querySelector(s)).filter, sel)
+      ).toBe;
 
     // Standard: bada knapparna ljusnar vid hovring.
     await page.goto(SIDA.utanPixel);
@@ -234,8 +232,8 @@ test.describe('Isolering fran kundens CSS', () => {
     await las('#cookie-banner .btn-save')('brightness(1.2)');
     expect(
       await page.evaluate(() =>
-        skugga().querySelector('#cookie-banner .btn-save').matches(':hover'),
-      ),
+        skugga().querySelector('#cookie-banner .btn-save').matches(':hover')
+      )
     ).toBe(true);
 
     // Kundens overstyrning: Anpassa slutar ljusna och far egen bakgrund,
@@ -249,8 +247,8 @@ test.describe('Isolering fran kundens CSS', () => {
         page.evaluate(
           () =>
             getComputedStyle(skugga().querySelector('#cookie-banner .btn-customize'))
-              .backgroundColor,
-        ),
+              .backgroundColor
+        )
       )
       .toBe('rgba(89, 74, 60, 0.12)');
 
@@ -370,13 +368,15 @@ test.describe('Tillganglighet', () => {
 
     await expect(reglage).toHaveAttribute('aria-checked', 'true');
     expect(
-      await page.evaluate(() => skugga().getElementById('performance-toggle').classList.contains('active')),
+      await page.evaluate(() =>
+        skugga().getElementById('performance-toggle').classList.contains('active')
+      )
     ).toBe(true);
 
     // Valet ska ocksa spara ratt - inte bara se ratt ut.
     await page.locator('#cookie-settings .btn-save').click();
     expect(decodeURIComponent(await page.evaluate(() => document.cookie))).toContain(
-      '"analytics":true',
+      '"analytics":true'
     );
   });
 
@@ -411,7 +411,7 @@ test.describe('Tillganglighet', () => {
 
     // Fokus ska ha flyttat in i den oppnade rutan.
     const inne = await page.evaluate(() =>
-      skugga().getElementById('cookie-settings').contains(skugga().activeElement),
+      skugga().getElementById('cookie-settings').contains(skugga().activeElement)
     );
     expect(inne).toBe(true);
 
@@ -453,8 +453,9 @@ test.describe('Tillganglighet', () => {
       const brister = [...resultat.violations, ...resultat.incomplete];
       const fel = brister.flatMap((v) =>
         v.nodes.map(
-          (n) => `${v.id}: ${String(n.target)} - ${(n.failureSummary || '').replace(/\s+/g, ' ').slice(0, 120)}`,
-        ),
+          (n) =>
+            `${v.id}: ${String(n.target)} - ${(n.failureSummary || '').replace(/\s+/g, ' ').slice(0, 120)}`
+        )
       );
       expect(fel, fel.join('\n')).toEqual([]);
     });
@@ -505,7 +506,7 @@ test.describe('Retry-ko for missade samtycken', () => {
 
     // 2. Valet tillampas anda - Google far signalen lokalt, utan var server.
     const gtagAnrop = await page.evaluate(() =>
-      (window.dataLayer || []).map((a) => Array.from(a).join(':')).join(' | '),
+      (window.dataLayer || []).map((a) => Array.from(a).join(':')).join(' | ')
     );
     expect(gtagAnrop).toContain('consent:update');
 
@@ -596,9 +597,7 @@ test.describe('Retry-ko for missade samtycken', () => {
     // ljuger bevisloggen om nar samtycket gavs.
     expect(mottagna[0].timestamp).toBe(tidpunktVidKlick);
 
-    await expect
-      .poll(() => page.evaluate((n) => localStorage.getItem(n), KO))
-      .toBe(null);
+    await expect.poll(() => page.evaluate((n) => localStorage.getItem(n), KO)).toBe(null);
   });
 
   test('ett avvisat samtycke koas inte - det skulle aldrig lyckas', async ({ page }) => {
@@ -631,7 +630,7 @@ test.describe('Retry-ko for missade samtycken', () => {
       const gammal = new Date(Date.now() - 40 * 86400000).toISOString();
       localStorage.setItem(
         n,
-        JSON.stringify([{ payload: { status: 'all', timestamp: gammal }, forsok: 0 }]),
+        JSON.stringify([{ payload: { status: 'all', timestamp: gammal }, forsok: 0 }])
       );
     }, KO);
 
@@ -707,9 +706,7 @@ test.describe('Meta-pixeln laddas vid samtycke', () => {
 
     await page.goto(SIDA.tidigLead);
 
-    const koFore = await page.evaluate(() =>
-      window.fbq.queue.map((a) => Array.from(a).join(':')),
-    );
+    const koFore = await page.evaluate(() => window.fbq.queue.map((a) => Array.from(a).join(':')));
     expect(koFore).toEqual(['track:Lead']);
 
     await knapp.acceptera(page).click();
@@ -743,10 +740,228 @@ test.describe('Aterkallat samtycke', () => {
     expect(await page.evaluate(() => document.cookie)).toContain('_fbp');
 
     await page.evaluate(() => window.openSettings());
-    await page.locator('#cookie-settings').getByRole('button', { name: 'Endast nödvändiga' }).click();
+    await page
+      .locator('#cookie-settings')
+      .getByRole('button', { name: 'Endast nödvändiga' })
+      .click();
 
     const cookies = await page.evaluate(() => document.cookie);
     expect(cookies).not.toContain('_fbp');
     expect(cookies).not.toContain('_fbc');
+  });
+});
+
+test.describe('Design fran databasen (C1 steg 1)', () => {
+  const NYCKEL = 'pk_test_00000000000000000000000000000000';
+  // Tydliga varden som inte kan forvaxlas med bannerns standardfarger.
+  const BEIGE = 'rgb(245, 240, 230)';
+
+  /** Ger sajten en site key och later API:t svara med en design. */
+  async function medDesign(page, design, { fordrojning = 0, hangDig = false } = {}) {
+    await page.addInitScript((k) => {
+      window.SEOS_SITE_KEY = k;
+    }, NYCKEL);
+
+    await page.route('**/config/**', async (route) => {
+      // En route som aldrig fullfoljs: harmar ett API som tagit emot fragan
+      // men aldrig svarar. Det ar det enda som provar tidsgransen pa riktigt.
+      if (hangDig) return new Promise(() => {});
+      if (fordrojning) await new Promise((r) => setTimeout(r, fordrojning));
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ design }),
+      });
+    });
+  }
+
+  const cssVariabel = (page, namn) =>
+    page.evaluate(
+      (n) =>
+        getComputedStyle(document.getElementById('cookie-sectionId')).getPropertyValue(n).trim(),
+      namn
+    );
+
+  const bannerBakgrund = (page) =>
+    page.evaluate(() => getComputedStyle(window.skugga().querySelector('.cookie')).backgroundColor);
+
+  test('kundens farger hamtas fran API:t och slar igenom pa bannern', async ({ page }) => {
+    await medSkugga(page);
+    await medDesign(page, { 'bg-main': '#f5f0e6', 'radius-md': '14px' });
+
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    // Inte bara att variabeln ar satt - att den faktiskt anvands. En variabel
+    // ingen regel laser ar en variabel som inte gor nagot.
+    expect(await bannerBakgrund(page)).toBe(BEIGE);
+    expect(await cssVariabel(page, '--radius-md')).toBe('14px');
+  });
+
+  test('bannern visas inte forran designen kommit - ingen omritning infor ogonen', async ({
+    page,
+  }) => {
+    // Karnan i hela steg 1. Renderade bannern direkt och malades om nar
+    // svaret kom skulle brevenshus banner ga fran mork till beige infor
+    // besokarens ogon. En cookiebanner som blinkar om ser trasig ut.
+    await medSkugga(page);
+    await medDesign(page, { 'bg-main': '#f5f0e6' }, { fordrojning: 400 });
+
+    await page.goto(SIDA.utanPixel);
+
+    // Medan configen ar pa vag: vardelementet finns, men bannern visas inte.
+    await expect(page.locator('#cookie-sectionId')).toBeAttached();
+    await expect(page.locator('#cookie-banner')).toBeHidden();
+
+    // Nar den kommit: synlig, och redan i ratt farg fran forsta bildrutan.
+    await expect(page.locator('#cookie-banner')).toBeVisible({ timeout: 3000 });
+    expect(await bannerBakgrund(page)).toBe(BEIGE);
+  });
+
+  test('bannern visas anda nar configen inte gar att hamta', async ({ page }) => {
+    // En banner som uteblir for att fargerna inte gick att hamta vore ett
+    // mycket varre fel an en banner i standardfarger.
+    const synligaFel = [];
+    page.on('pageerror', (e) => synligaFel.push(e.message));
+
+    await medSkugga(page);
+    await page.addInitScript((k) => {
+      window.SEOS_SITE_KEY = k;
+    }, NYCKEL);
+    await page.route('**/config/**', (route) => route.abort('failed'));
+
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible({ timeout: 3000 });
+    expect(await bannerBakgrund(page)).not.toBe(BEIGE);
+    expect(synligaFel).toEqual([]);
+  });
+
+  test('tidsgransen haller nar API:t tar emot men aldrig svarar', async ({ page }) => {
+    // Utan AbortController hade bannern hangt sig har - och en osynlig banner
+    // ar samma sak som ingen banner alls.
+    await medSkugga(page);
+    await medDesign(page, {}, { hangDig: true });
+
+    const start = Date.now();
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible({ timeout: 5000 });
+    expect(Date.now() - start).toBeLessThan(4000);
+  });
+
+  test('geometri gar INTE att satta per sajt', async ({ page }) => {
+    // Designmodellen, lastfast: bannern ska kannas som samma komponent pa
+    // alla sajter. Ser storleken fel ut ska BASVARDET rattas - annars nar
+    // framtida basandringar aldrig fram dit vardet ar overstyrt.
+    await medSkugga(page);
+    await medDesign(page, {
+      'banner-width': '1400px',
+      'body-text-size': '40px',
+      'space-md': '99px',
+      'bg-main': '#f5f0e6',
+    });
+
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    // Fargen slapptes igenom, geometrin inte. Att bada provas i samma svar
+    // ar poangen: det visar att filtret valjer, inte att allt foll bort.
+    expect(await bannerBakgrund(page)).toBe(BEIGE);
+    const bredd = await page.evaluate(
+      () => window.skugga().querySelector('.cookie').getBoundingClientRect().width
+    );
+    expect(bredd).toBeLessThan(1000);
+  });
+
+  test('varden som skulle hamta nagot utifran slapps inte igenom', async ({ page }) => {
+    // CSS-varden tolkas aldrig som kod, men ett url() far webblasaren att
+    // hamta fran en adress vi inte valt - en tankbar vag att spara besokare.
+    const utanforstaende = [];
+    page.on('request', (r) => {
+      if (r.url().includes('elak.example')) utanforstaende.push(r.url());
+    });
+
+    await medSkugga(page);
+    await medDesign(page, {
+      'bg-main': 'url(https://elak.example/spar.png)',
+      'scroll-gradient': 'url("https://elak.example/2.png")',
+      'radius-md': '9px',
+    });
+
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    expect(utanforstaende).toEqual([]);
+    expect(await cssVariabel(page, '--bg-main')).not.toContain('elak.example');
+    // Det ofarliga vardet i samma svar slapptes igenom.
+    expect(await cssVariabel(page, '--radius-md')).toBe('9px');
+  });
+
+  test('utan site key hamtas ingen config alls', async ({ page }) => {
+    // Sajter som annu inte fatt sin nyckel ska bete sig precis som forut.
+    const anrop = [];
+    page.on('request', (r) => {
+      if (r.url().includes('/config/')) anrop.push(r.url());
+    });
+
+    await medSkugga(page);
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    expect(anrop).toEqual([]);
+  });
+  test('ingen config hamtas for den som redan samtyckt', async ({ page }) => {
+    // De allra flesta sidvisningar kommer fran nagon som redan svarat. For dem
+    // visas bannern aldrig, sa designen behovs inte - och /config ar den enda
+    // trafik som sker per SIDVISNING i stallet for per besokare. Varje anrop
+    // som nar databasen haller dessutom Neon vaken i minst fem minuter.
+    const anrop = [];
+    page.on('request', (r) => {
+      if (r.url().includes('/config/')) anrop.push(r.url());
+    });
+
+    await medSkugga(page);
+    await medDesign(page, { 'bg-main': '#f5f0e6' });
+
+    // Forsta besoket: bannern visas, designen hamtas.
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    await knapp.acceptera(page).click();
+    await expect(page.locator('#cookie-banner')).toBeHidden();
+    expect(anrop.length).toBe(1);
+
+    // Andra sidvisningen: samtycke finns, bannern doljs - noll nya anrop.
+    anrop.length = 0;
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeHidden();
+    await page.waitForTimeout(500);
+    expect(anrop).toEqual([]);
+
+    // Men oppnar besokaren installningarna behovs designen - da hamtas den.
+    await page.evaluate(() => window.openSettings());
+    await expect(page.locator('#cookie-settings')).toBeVisible();
+    expect(anrop.length).toBe(1);
+    expect(await bannerBakgrund(page)).toBe(BEIGE);
+  });
+  test('farsklaget gar forbi cachen, vanligt lage gor det inte', async ({ page }) => {
+    // Configen cachas en timme, vilket ar ratt for besokare men fel for den
+    // som sitter och justerar farger. ?seos_farsk=1 far just den
+    // sidladdningen att hamta direkt ur databasen.
+    const adresser = [];
+    page.on('request', (r) => {
+      if (r.url().includes('/config/')) adresser.push(r.url());
+    });
+
+    await medSkugga(page);
+    await medDesign(page, { 'bg-main': '#f5f0e6' });
+
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    expect(adresser[0]).not.toContain('farsk=');
+
+    adresser.length = 0;
+    await page.goto(SIDA.utanPixel + '?seos_farsk=1');
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    // Tidsstampeln gor adressen unik sa CDN:et inte kan svara ur cachen.
+    expect(adresser[0]).toContain('farsk=');
+    expect(await bannerBakgrund(page)).toBe(BEIGE);
   });
 });

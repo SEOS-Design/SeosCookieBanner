@@ -1330,6 +1330,93 @@ button:hover {
     };
     const selfScript = document.currentScript || document.querySelector('script[src*="seos-cookie-banner"]');
     const SITE_KEY = selfScript && selfScript.dataset && selfScript.dataset.siteKey || window.SEOS_SITE_KEY || null;
+    const DESIGNVARIABLER = /* @__PURE__ */ new Set([
+      "bg-main",
+      "bg-muted",
+      "text-main",
+      "text-muted",
+      "accent-color",
+      "accent-hover",
+      "bg-dark-btn",
+      "border-color",
+      "btn-border",
+      "logo-color",
+      "bg-logo-wrapper",
+      "bg-customize-btn",
+      "toggle-switch-bg",
+      "toggle-circle",
+      "btn-accent-text",
+      "btn-hover-filter",
+      "btn-secondary-hover-bg",
+      "btn-secondary-hover-filter",
+      "fokus-ring",
+      "policy-link-color",
+      "badge-text-color",
+      "scroll-gradient",
+      "main-font",
+      "header-font",
+      "radius-sm",
+      "radius-md",
+      "radius-lg"
+    ]);
+    const FARLIGT_VARDE = /url\(|expression\(|javascript:|@import|[<>{}\\;]/i;
+    const DESIGN_TIDSGRANS_MS = 800;
+    let hamtadDesign = null;
+    function tillampaDesign() {
+      if (!hamtadDesign) return;
+      const host = document.getElementById(HOST_ID);
+      if (!host) return;
+      for (const nyckel in hamtadDesign) {
+        host.style.setProperty("--" + nyckel, hamtadDesign[nyckel]);
+      }
+    }
+    function farsklage() {
+      try {
+        if (window.SEOS_FARSK) return true;
+        return new URLSearchParams(window.location.search).has("seos_farsk");
+      } catch (e) {
+        return false;
+      }
+    }
+    async function hamtaDesign() {
+      if (!SITE_KEY) return {};
+      const styrning = new AbortController();
+      const klocka = setTimeout(() => styrning.abort(), DESIGN_TIDSGRANS_MS);
+      try {
+        const adress = `${API_BASE_URL}/config/${encodeURIComponent(SITE_KEY)}` + (farsklage() ? `?farsk=${Date.now()}` : "");
+        const svar = await fetch(adress, { signal: styrning.signal });
+        if (!svar.ok) return {};
+        const data = await svar.json();
+        const design = data && data.design;
+        if (!design || typeof design !== "object") return {};
+        const rensad = {};
+        for (const nyckel in design) {
+          const varde = design[nyckel];
+          if (!DESIGNVARIABLER.has(nyckel)) continue;
+          if (typeof varde !== "string" || !varde || varde.length > 200) continue;
+          if (FARLIGT_VARDE.test(varde)) continue;
+          rensad[nyckel] = varde;
+        }
+        return rensad;
+      } catch (fel) {
+        log("[Design] Kunde inte hamta config:", fel && fel.message);
+        return {};
+      } finally {
+        clearTimeout(klocka);
+      }
+    }
+    let designLoftet = null;
+    function sakerstallDesign() {
+      if (!designLoftet) {
+        designLoftet = hamtaDesign().then((design) => {
+          hamtadDesign = design;
+          tillampaDesign();
+          return design;
+        });
+      }
+      return designLoftet;
+    }
+    if (!getCookie("consent_status")) sakerstallDesign();
     const META_PIXEL_ID = selfScript && selfScript.dataset && selfScript.dataset.metaPixelId || window.SEOS_META_PIXEL_ID || null;
     let metaPixelLoaded = false;
     const pageLang = (window.SEOS_COOKIE_LANG || document.documentElement.lang || "").split("-")[0].toLowerCase();
@@ -1342,9 +1429,24 @@ button:hover {
           text: t.necessaryDesc,
           last: true
         },
-        { id: "performance", reglage: "performance-toggle", etikett: t.analyticsLabel, text: t.analyticsDesc },
-        { id: "functional", reglage: "functional-toggle", etikett: t.functionalLabel, text: t.functionalDesc },
-        { id: "marketing", reglage: "marketing-toggle", etikett: t.marketingLabel, text: t.marketingDesc }
+        {
+          id: "performance",
+          reglage: "performance-toggle",
+          etikett: t.analyticsLabel,
+          text: t.analyticsDesc
+        },
+        {
+          id: "functional",
+          reglage: "functional-toggle",
+          etikett: t.functionalLabel,
+          text: t.functionalDesc
+        },
+        {
+          id: "marketing",
+          reglage: "marketing-toggle",
+          etikett: t.marketingLabel,
+          text: t.marketingDesc
+        }
       ];
       return kategorier.map((k) => {
         const kortAttribut = k.last ? "" : ` data-handling="vaxla" data-reglage="${k.reglage}"`;
@@ -1777,7 +1879,9 @@ button:hover {
       applyMetaConsentFromPayload(payload);
       saveConsentAndSend(payload);
     }
-    function openSettings() {
+    async function openSettings() {
+      await sakerstallDesign();
+      tillampaDesign();
       let choices = { analytics: false, marketing: false, functional: false };
       const status = getCookie("consent_status");
       const choicesJson = getCookie("consent_choices");
@@ -1870,6 +1974,8 @@ button:hover {
       element.setAttribute("aria-checked", pa ? "true" : "false");
     }
     async function showPolicy() {
+      await sakerstallDesign();
+      tillampaDesign();
       const domain = window.location.hostname;
       const policyUrl = `${API_BASE_URL}/consent/policy/latest?domain=${domain}`;
       showPolicyModal();
@@ -1941,6 +2047,7 @@ button:hover {
     }
     function initializeBanner() {
       injectBannerHTML();
+      tillampaDesign();
       const webflowLink = document.getElementById("open-cookie-settings");
       if (webflowLink) {
         webflowLink.addEventListener("click", (e) => {
@@ -1948,7 +2055,7 @@ button:hover {
           openSettings();
         });
       }
-      setTimeout(() => {
+      setTimeout(async () => {
         getOrCreateClientId();
         loadAndApplySavedConsent();
         tomKo();
@@ -1956,10 +2063,12 @@ button:hover {
         if (consentStatus) {
           hideAllBanners();
           log("[Init] Consent found - banner hidden");
-        } else {
-          showCookieBanner();
-          log("[Init] No consent - showing banner");
+          return;
         }
+        await sakerstallDesign();
+        tillampaDesign();
+        showCookieBanner();
+        log("[Init] No consent - showing banner");
       }, 50);
     }
     window.acceptAll = acceptAll;
