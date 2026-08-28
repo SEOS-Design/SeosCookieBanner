@@ -270,11 +270,11 @@ test.describe('Isolering fran kundens CSS', () => {
     const aktiv = (id) =>
       page.evaluate((i) => skugga().getElementById(i).classList.contains('active'), id);
 
-    expect(await aktiv('performance-toggle')).toBe(false);
+    expect(await aktiv('analytics-toggle')).toBe(false);
 
     // Klicket ligger pa kortet, inte pa reglaget - hela raden ar klickbar.
     await page.locator('#cookie-settings .cookie-category-card').nth(1).click();
-    expect(await aktiv('performance-toggle')).toBe(true);
+    expect(await aktiv('analytics-toggle')).toBe(true);
     expect(await aktiv('marketing-toggle')).toBe(false);
 
     await page.locator('#cookie-settings .btn-save').click();
@@ -357,19 +357,19 @@ test.describe('Tillganglighet', () => {
     await medSkugga(page);
     await oppnaInstallningar(page);
 
-    const reglage = page.locator('#performance-toggle');
+    const reglage = page.locator('#analytics-toggle');
     await expect(reglage).toHaveAttribute('role', 'switch');
     await expect(reglage).toHaveAttribute('aria-checked', 'false');
 
     // Ingen mus: tabba fram till reglaget och slaa pa det med mellanslag.
     await reglage.focus();
-    expect(await page.evaluate(() => skugga().activeElement.id)).toBe('performance-toggle');
+    expect(await page.evaluate(() => skugga().activeElement.id)).toBe('analytics-toggle');
     await page.keyboard.press('Space');
 
     await expect(reglage).toHaveAttribute('aria-checked', 'true');
     expect(
       await page.evaluate(() =>
-        skugga().getElementById('performance-toggle').classList.contains('active')
+        skugga().getElementById('analytics-toggle').classList.contains('active')
       )
     ).toBe(true);
 
@@ -963,6 +963,205 @@ test.describe('Design fran databasen (C1 steg 1)', () => {
     // Tidsstampeln gor adressen unik sa CDN:et inte kan svara ur cachen.
     expect(adresser[0]).toContain('farsk=');
     expect(await bannerBakgrund(page)).toBe(BEIGE);
+  });
+});
+
+test.describe('Kategorier fran databasen (C1 steg 2)', () => {
+  const NYCKEL = 'pk_test_00000000000000000000000000000000';
+
+  /** Later API:t svara med en uppsattning kategorier. */
+  async function medKategorier(page, categories, { utanFalt = false } = {}) {
+    await page.addInitScript((k) => {
+      window.SEOS_SITE_KEY = k;
+    }, NYCKEL);
+
+    await page.route('**/config/**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(utanFalt ? { design: {} } : { design: {}, categories }),
+      })
+    );
+  }
+
+  const kort = (page) => page.locator('#settings-container .cookie-category-card');
+
+  const oppnaInstallningar = async (page) => {
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    await page.locator('#cookie-banner .btn-customize').click();
+    await expect(page.locator('#cookie-settings')).toBeVisible();
+  };
+
+  /** Fangar det som skickas till bevisloggen. */
+  async function fangaConsent(page) {
+    const skickat = [];
+    await page.route('**/consent', (route) => {
+      skickat.push(JSON.parse(route.request().postData() || '{}'));
+      return route.fulfill({ status: 201, contentType: 'application/json', body: '{}' });
+    });
+    return skickat;
+  }
+
+  test('databasen bestammer vilka kort som visas', async ({ page }) => {
+    await medSkugga(page);
+    await medKategorier(page, [
+      { key: 'necessary', is_required: true },
+      { key: 'analytics', is_required: false },
+      { key: 'marketing', is_required: false },
+    ]);
+
+    await oppnaInstallningar(page);
+
+    await expect(kort(page)).toHaveCount(3);
+    await expect(page.locator('#analytics-toggle')).toBeVisible();
+    await expect(page.locator('#marketing-toggle')).toBeVisible();
+    // Den bortvalda kategorin finns inte alls - inte dold, inte tom.
+    await expect(page.locator('#functional-toggle')).toHaveCount(0);
+  });
+
+  test('kategorierna ritas i bannerns ordning, inte API:ts', async ({ page }) => {
+    await medSkugga(page);
+    // API:t svarar i omvand ordning. Bannern har sin egen.
+    await medKategorier(page, [
+      { key: 'marketing', is_required: false },
+      { key: 'functional', is_required: false },
+      { key: 'analytics', is_required: false },
+      { key: 'necessary', is_required: true },
+    ]);
+
+    await oppnaInstallningar(page);
+
+    const ordning = await page.evaluate(() =>
+      [...window.skugga().querySelectorAll('#settings-container .cookie-category-card h5')].map(
+        (h) => h.id
+      )
+    );
+    expect(ordning).toEqual([
+      'etikett-necessary',
+      'etikett-analytics',
+      'etikett-functional',
+      'etikett-marketing',
+    ]);
+  });
+
+  test('saknas faltet helt ritas bannerns fyra', async ({ page }) => {
+    // Sa beter sig ett API som annu inte skickar kategorier. Det ar det som
+    // gor att bannern kan rullas ut fore API:t utan att nagot andras.
+    await medSkugga(page);
+    await medKategorier(page, null, { utanFalt: true });
+
+    await oppnaInstallningar(page);
+    await expect(kort(page)).toHaveCount(4);
+  });
+
+  test('tom lista ritar bannerns fyra - aldrig noll val', async ({ page }) => {
+    await medSkugga(page);
+    await medKategorier(page, []);
+
+    await oppnaInstallningar(page);
+    await expect(kort(page)).toHaveCount(4);
+  });
+
+  test('gar configen inte att hamta ritas bannerns fyra', async ({ page }) => {
+    await medSkugga(page);
+    await page.addInitScript((k) => {
+      window.SEOS_SITE_KEY = k;
+    }, NYCKEL);
+    await page.route('**/config/**', (route) => route.abort('failed'));
+
+    await oppnaInstallningar(page);
+    await expect(kort(page)).toHaveCount(4);
+  });
+
+  test('en okand kategori ritas inte - bannern har ingen text for den', async ({ page }) => {
+    await medSkugga(page);
+    await medKategorier(page, [
+      { key: 'necessary', is_required: true },
+      { key: 'analytics', is_required: false },
+      { key: 'sociala-medier', is_required: false },
+    ]);
+
+    await oppnaInstallningar(page);
+    await expect(kort(page)).toHaveCount(2);
+    await expect(page.locator('#sociala-medier-toggle')).toHaveCount(0);
+  });
+
+  test('nodvandiga gar inte att stanga av, aven om databasen pastar det', async ({ page }) => {
+    await medSkugga(page);
+    await medKategorier(page, [
+      { key: 'necessary', is_required: false },
+      { key: 'analytics', is_required: false },
+    ]);
+
+    await oppnaInstallningar(page);
+
+    // Kortet ska fortfarande vara last: inget id, inget vaxlingsattribut.
+    await expect(page.locator('#necessary-toggle')).toHaveCount(0);
+    const forstaKort = kort(page).first();
+    await expect(forstaKort.locator('.badge')).toBeVisible();
+    await expect(forstaKort.locator('button')).toBeDisabled();
+  });
+
+  test('en dold kategori skickas som false vid acceptera alla', async ({ page }) => {
+    // Bevisloggen far aldrig pasta att besokaren samtyckt till nagot hen
+    // aldrig blev tillfragad om.
+    await medSkugga(page);
+    await medKategorier(page, [
+      { key: 'necessary', is_required: true },
+      { key: 'analytics', is_required: false },
+    ]);
+    const skickat = await fangaConsent(page);
+
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    await page.locator('#cookie-banner .btn-save').click();
+    await page.waitForFunction(() => document.cookie.includes('consent_status'));
+
+    expect(skickat).toHaveLength(1);
+    expect(skickat[0].status).toBe('all');
+    expect(skickat[0].necessary).toBe(true);
+    expect(skickat[0].analytics).toBe(true);
+    // Visades aldrig - alltsa inget samtycke.
+    expect(skickat[0].functional).toBe(false);
+    expect(skickat[0].marketing).toBe(false);
+  });
+
+  test('en dold kategori skickas som false nar installningar sparas', async ({ page }) => {
+    await medSkugga(page);
+    await medKategorier(page, [
+      { key: 'necessary', is_required: true },
+      { key: 'marketing', is_required: false },
+    ]);
+    const skickat = await fangaConsent(page);
+
+    await oppnaInstallningar(page);
+    await page.locator('#marketing-toggle').click();
+    await page.locator('#cookie-settings .btn-save').click();
+    await page.waitForFunction(() => document.cookie.includes('consent_status'));
+
+    expect(skickat).toHaveLength(1);
+    expect(skickat[0].status).toBe('custom');
+    expect(skickat[0].marketing).toBe(true);
+    expect(skickat[0].analytics).toBe(false);
+    expect(skickat[0].functional).toBe(false);
+  });
+
+  test('payloadens form ar oforandrad - fyra fasta falt', async ({ page }) => {
+    // Formen far inte andras: validatorn, consent.ts och bevisloggens struktur
+    // hanger pa den. Bara vardena foljer vad som visades.
+    await medSkugga(page);
+    await medKategorier(page, [{ key: 'necessary', is_required: true }]);
+    const skickat = await fangaConsent(page);
+
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    await page.locator('#cookie-banner .btn-save').click();
+    await page.waitForFunction(() => document.cookie.includes('consent_status'));
+
+    for (const falt of ['necessary', 'analytics', 'marketing', 'functional']) {
+      expect(typeof skickat[0][falt]).toBe('boolean');
+    }
   });
 });
 

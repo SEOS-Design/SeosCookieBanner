@@ -180,7 +180,7 @@ import bannerCss from './style.css';
     'btn-secondary-hover-filter',
     'fokus-ring',
     'scrollbar-thumb',
-  'policy-link-color',
+    'policy-link-color',
     'badge-text-color',
     'scroll-gradient',
     'main-font',
@@ -196,12 +196,74 @@ import bannerCss from './style.css';
   // inte kommer fran oss.
   const UNSAFE_VALUE = /url\(|expression\(|javascript:|@import|[<>{}\\;]/i;
 
+  //========================================================================
+  // KATEGORIER FRAN DATABASEN (C1 steg 2)
+  //========================================================================
+  //
+  // Vilka kategorikort som visas i installningsrutan kommer fran databasen.
+  // En sajt utan funktionella cookies ska inte visa ett reglage for dem.
+  //
+  // ETIKETTERNA ligger kvar har, i bannerns egen sprakabell - databasen
+  // skickar bara nycklar. Det ar med flit: text fran en databas som skrivs ut
+  // pa kundsajter ar precis den konstruktion som ger XSS-hal, och den ytan
+  // hor till steg 3.
+  //
+  // Foljden ar vard att saga rakt ut: STEG 2 KAN TA BORT KATEGORIER, INTE
+  // LAGGA TILL NYA. En femte kategori kraver texter fran databasen.
+  //
+  // Listan ar en KOPIA av API:ts CATEGORY_ORDER, precis som med
+  // designvariablerna. Driver de isar galler snittet: en kategori slutar
+  // visas, i stallet for att en okand kategori borjar ritas. Fel at ratt hall.
+  const CATEGORY_KEYS = ['necessary', 'analytics', 'functional', 'marketing'];
+
+  // Vad bannern ritar nar configen inte gav nagra kategorier: natverksfel,
+  // saknad site key, eller ett API som annu inte skickar faltet.
+  //
+  // FYRA KORT, precis som fore steg 2. En banner med for manga val ar ett
+  // skonhetsfel. En banner med for fa - eller inga - ar val besokaren aldrig
+  // fick gora, och det ar hela tjansten som gar sonder.
+  const DEFAULT_CATEGORIES = CATEGORY_KEYS.map((key) => ({
+    key,
+    is_required: key === 'necessary',
+  }));
+
+  /** Slapper bara igenom kanda kategorier, i bannerns egen ordning. */
+  function sanitizeCategories(lista) {
+    if (!Array.isArray(lista)) return [];
+
+    const funna = new Map();
+    for (const rad of lista) {
+      if (!rad || typeof rad !== 'object') continue;
+      if (typeof rad.key !== 'string') continue;
+      if (CATEGORY_KEYS.indexOf(rad.key) === -1) continue;
+      funna.set(rad.key, rad.is_required === true);
+    }
+
+    if (!funna.size) return [];
+
+    // NODVANDIGA AR ALLTID MED, OCH ALLTID OBLIGATORISKA. Samma invariant som
+    // i API:t, och av samma skal: payloaden skickar alltid necessary: true, sa
+    // ett reglage som gick att stanga av hade ljugit for besokaren.
+    funna.set('necessary', true);
+
+    return CATEGORY_KEYS.filter((key) => funna.has(key)).map((key) => ({
+      key,
+      is_required: funna.get(key) === true,
+    }));
+  }
+
   // Hur lange bannern vantar pa designen innan den visar sig anda. Vid trafik
   // ligger svaret pa CDN:et och kommer pa nagra tiotals millisekunder; grensen
   // slar bara till vid kall cache eller stromavbrott i andra anden.
   const CONFIG_TIMEOUT_MS = 800;
 
   let loadedDesign = null;
+  let loadedCategories = null;
+
+  /** Kategorierna configen gav, eller bannerns fyra om den inte gav nagra. */
+  function activeCategories() {
+    return loadedCategories && loadedCategories.length ? loadedCategories : DEFAULT_CATEGORIES;
+  }
 
   /** Skriver de hamtade vardena som CSS-variabler pa vardelementet. */
   function applyDesign() {
@@ -235,9 +297,12 @@ import bannerCss from './style.css';
     }
   }
 
+  // Tomt svar. Bannern kor sina standardvarden och sina fyra kategorier.
+  const TOM_CONFIG = { design: {}, categories: [] };
+
   async function fetchConfig() {
-    // Utan site key finns inget att sla upp. Bannern kor sina standardvarden.
-    if (!SITE_KEY) return {};
+    // Utan site key finns inget att sla upp.
+    if (!SITE_KEY) return TOM_CONFIG;
 
     const styrning = new AbortController();
     const klocka = setTimeout(() => styrning.abort(), CONFIG_TIMEOUT_MS);
@@ -250,27 +315,33 @@ import bannerCss from './style.css';
         (isFreshMode() ? `?farsk=${Date.now()}` : '');
 
       const svar = await fetch(adress, { signal: styrning.signal });
-      if (!svar.ok) return {};
+      if (!svar.ok) return TOM_CONFIG;
 
       const data = await svar.json();
-      const design = data && data.design;
-      if (!design || typeof design !== 'object') return {};
+      if (!data || typeof data !== 'object') return TOM_CONFIG;
 
+      const design = data.design;
       const rensad = {};
-      for (const nyckel in design) {
-        const varde = design[nyckel];
-        if (!DESIGN_VARIABLES.has(nyckel)) continue;
-        if (typeof varde !== 'string' || !varde || varde.length > 200) continue;
-        if (UNSAFE_VALUE.test(varde)) continue;
-        rensad[nyckel] = varde;
+      if (design && typeof design === 'object') {
+        for (const nyckel in design) {
+          const varde = design[nyckel];
+          if (!DESIGN_VARIABLES.has(nyckel)) continue;
+          if (typeof varde !== 'string' || !varde || varde.length > 200) continue;
+          if (UNSAFE_VALUE.test(varde)) continue;
+          rensad[nyckel] = varde;
+        }
       }
-      return rensad;
+
+      // Saknas faltet helt - ett API som annu inte skickar det - blir listan
+      // tom, och bannern faller tillbaka pa sina fyra. Det ar det som gor att
+      // bannern kan rullas ut fore API:t utan att nagot andras.
+      return { design: rensad, categories: sanitizeCategories(data.categories) };
     } catch (fel) {
       // Avbrott, natverksfel eller trasigt svar: bannern ska visa sig anda.
-      // En banner som uteblir for att designen inte gick att hamta vore ett
+      // En banner som uteblir for att configen inte gick att hamta vore ett
       // mycket varre fel an en banner i fel farger.
-      log('[Design] Kunde inte hamta config:', fel && fel.message);
-      return {};
+      log('[Config] Kunde inte hamta config:', fel && fel.message);
+      return TOM_CONFIG;
     } finally {
       clearTimeout(klocka);
     }
@@ -278,16 +349,36 @@ import bannerCss from './style.css';
 
   let configPromise = null;
 
-  /** Hamtar designen hogst en gang, oavsett hur manga som fragar. */
+  /** Hamtar configen hogst en gang, oavsett hur manga som fragar. */
   function ensureConfig() {
     if (!configPromise) {
-      configPromise = fetchConfig().then((design) => {
-        loadedDesign = design;
+      configPromise = fetchConfig().then((config) => {
+        loadedDesign = config.design;
+        loadedCategories = config.categories;
         applyDesign();
-        return design;
+        applyCategories();
+        return config;
       });
     }
     return configPromise;
+  }
+
+  /**
+   * Ritar om kategorikorten nar configen kommit.
+   *
+   * KORTEN BEHOVER INTE FINNAS NAR BANNERN RITAS, till skillnad fran
+   * designen. Installningsrutan ar aldrig det forsta besokaren ser - bannern
+   * visas forst, och den vantar redan in configen innan den visar sig. Och
+   * openSettings() vantar ocksa. Det finns alltsa inget lage dar nagon hinner
+   * se fel uppsattning kort och sedan se dem bytas.
+   *
+   * Darfor racker det att skriva om behallaren i efterhand, i stallet for att
+   * fordroja injiceringen av bannerns HTML.
+   */
+  function applyCategories() {
+    const behallare = el('settings-container');
+    if (!behallare) return;
+    behallare.innerHTML = renderCategoryCards();
   }
 
   // HAMTAS BARA NAR DEN BEHOVS.
@@ -333,49 +424,45 @@ import bannerCss from './style.css';
   // skarmlasare, och da kan besokaren inte gora ett specifikt val per kategori.
   // Kortet i sin helhet ar fortfarande klickbart: klicket bubblar upp fran
   // knappen till kortets data-handling, sa bada vagarna ger exakt ett omslag.
-  function renderCategoryCards() {
-    const kategorier = [
-      {
-        id: 'necessary',
-        etikett: `${t.necessaryLabel} <span class="badge">${t.requiredBadge}</span>`,
-        text: t.necessaryDesc,
-        last: true,
-      },
-      {
-        id: 'performance',
-        reglage: 'performance-toggle',
-        etikett: t.analyticsLabel,
-        text: t.analyticsDesc,
-      },
-      {
-        id: 'functional',
-        reglage: 'functional-toggle',
-        etikett: t.functionalLabel,
-        text: t.functionalDesc,
-      },
-      {
-        id: 'marketing',
-        reglage: 'marketing-toggle',
-        etikett: t.marketingLabel,
-        text: t.marketingDesc,
-      },
-    ];
+  // Texterna slas upp pa nyckel. Databasen skickar bara nycklar - aldrig text.
+  // En nyckel som saknas har gar inte att rita, och ritas darfor inte.
+  function kategoriTexter() {
+    return {
+      necessary: { etikett: t.necessaryLabel, text: t.necessaryDesc },
+      analytics: { etikett: t.analyticsLabel, text: t.analyticsDesc },
+      functional: { etikett: t.functionalLabel, text: t.functionalDesc },
+      marketing: { etikett: t.marketingLabel, text: t.marketingDesc },
+    };
+  }
 
-    return kategorier
-      .map((k) => {
-        const kortAttribut = k.last ? '' : ` data-handling="vaxla" data-reglage="${k.reglage}"`;
-        const knappAttribut = k.last
+  function renderCategoryCards() {
+    const texter = kategoriTexter();
+
+    return activeCategories()
+      .map((kategori) => {
+        const text = texter[kategori.key];
+        if (!text) return '';
+
+        const reglage = `${kategori.key}-toggle`;
+        const etikett = kategori.is_required
+          ? `${text.etikett} <span class="badge">${t.requiredBadge}</span>`
+          : text.etikett;
+
+        const kortAttribut = kategori.is_required
+          ? ''
+          : ` data-handling="vaxla" data-reglage="${reglage}"`;
+        const knappAttribut = kategori.is_required
           ? 'class="toggle-switch always-active" aria-checked="true" disabled'
-          : `class="toggle-switch" id="${k.reglage}" aria-checked="false"`;
+          : `class="toggle-switch" id="${reglage}" aria-checked="false"`;
 
         return `
           <div class="cookie-category-card"${kortAttribut}>
             <div class="category-text-wrapper">
-              <h5 id="etikett-${k.id}">${k.etikett}</h5>
-              <p id="text-${k.id}">${k.text}</p>
+              <h5 id="etikett-${kategori.key}">${etikett}</h5>
+              <p id="text-${kategori.key}">${text.text}</p>
             </div>
             <button type="button" role="switch" ${knappAttribut}
-              aria-labelledby="etikett-${k.id}" aria-describedby="text-${k.id}">
+              aria-labelledby="etikett-${kategori.key}" aria-describedby="text-${kategori.key}">
               <span class="toggle-slider"></span>
             </button>
           </div>`;
@@ -738,11 +825,23 @@ import bannerCss from './style.css';
   function acceptAllConsent() {
     const clientId = getOrCreateClientId();
 
+    // BARA KATEGORIER SOM FAKTISKT VISADES FAR ETT JA.
+    //
+    // Doljer en sajt t.ex. functional skickas den som false, aven vid
+    // "Acceptera alla". Annars hade bevisloggen pastatt att besokaren samtyckt
+    // till nagot hen aldrig blev tillfragad om - och beviset ar hela tjansten.
+    //
+    // Payloadens FORM andras inte: fyra fasta falt, precis som forut. Bara
+    // vardena foljer vad som visades. Darfor rors varken validatorn,
+    // consent.ts eller bevisloggens struktur.
+    const visade = {};
+    for (const kategori of activeCategories()) visade[kategori.key] = true;
+
     return {
       necessary: true,
-      analytics: true,
-      marketing: true,
-      functional: true,
+      analytics: visade.analytics === true,
+      marketing: visade.marketing === true,
+      functional: visade.functional === true,
       client_id: clientId,
       site_key: SITE_KEY,
       domain: window.location.hostname,
@@ -1057,9 +1156,12 @@ import bannerCss from './style.css';
       }
     };
 
-    applyToggleState('performance-toggle', choices.analytics);
-    applyToggleState('marketing-toggle', choices.marketing);
-    applyToggleState('functional-toggle', choices.functional);
+    // Bara de reglage som faktiskt ritats. En dold kategori har inget element,
+    // och applyToggleState hittar da ingenting att satta.
+    for (const kategori of activeCategories()) {
+      if (kategori.is_required) continue;
+      applyToggleState(`${kategori.key}-toggle`, choices[kategori.key] === true);
+    }
 
     showSettingsModal();
 
@@ -1093,9 +1195,18 @@ import bannerCss from './style.css';
   function saveSettings() {
     const clientId = getOrCreateClientId();
 
-    const analytics = el('performance-toggle')?.classList.contains('active') || false;
-    const marketing = el('marketing-toggle')?.classList.contains('active') || false;
-    const functional = el('functional-toggle')?.classList.contains('active') || false;
+    // Lases fran de reglage som ritats. En dold kategori har inget element och
+    // stannar pa false - samma regel som i acceptAllConsent: bevisloggen far
+    // aldrig pasta att besokaren tog stallning till nagot hen inte fick se.
+    const val = { analytics: false, marketing: false, functional: false };
+    for (const kategori of activeCategories()) {
+      if (kategori.is_required) continue;
+      val[kategori.key] = el(`${kategori.key}-toggle`)?.classList.contains('active') || false;
+    }
+
+    const analytics = val.analytics;
+    const marketing = val.marketing;
+    const functional = val.functional;
 
     const payload = {
       necessary: true,

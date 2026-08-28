@@ -1391,8 +1391,33 @@ button:hover {
       "radius-lg"
     ]);
     const UNSAFE_VALUE = /url\(|expression\(|javascript:|@import|[<>{}\\;]/i;
+    const CATEGORY_KEYS = ["necessary", "analytics", "functional", "marketing"];
+    const DEFAULT_CATEGORIES = CATEGORY_KEYS.map((key) => ({
+      key,
+      is_required: key === "necessary"
+    }));
+    function sanitizeCategories(lista) {
+      if (!Array.isArray(lista)) return [];
+      const funna = /* @__PURE__ */ new Map();
+      for (const rad of lista) {
+        if (!rad || typeof rad !== "object") continue;
+        if (typeof rad.key !== "string") continue;
+        if (CATEGORY_KEYS.indexOf(rad.key) === -1) continue;
+        funna.set(rad.key, rad.is_required === true);
+      }
+      if (!funna.size) return [];
+      funna.set("necessary", true);
+      return CATEGORY_KEYS.filter((key) => funna.has(key)).map((key) => ({
+        key,
+        is_required: funna.get(key) === true
+      }));
+    }
     const CONFIG_TIMEOUT_MS = 800;
     let loadedDesign = null;
+    let loadedCategories = null;
+    function activeCategories() {
+      return loadedCategories && loadedCategories.length ? loadedCategories : DEFAULT_CATEGORIES;
+    }
     function applyDesign() {
       if (!loadedDesign) return;
       const host = document.getElementById(HOST_ID);
@@ -1409,29 +1434,32 @@ button:hover {
         return false;
       }
     }
+    const TOM_CONFIG = { design: {}, categories: [] };
     async function fetchConfig() {
-      if (!SITE_KEY) return {};
+      if (!SITE_KEY) return TOM_CONFIG;
       const styrning = new AbortController();
       const klocka = setTimeout(() => styrning.abort(), CONFIG_TIMEOUT_MS);
       try {
         const adress = `${API_BASE_URL}/config/${encodeURIComponent(SITE_KEY)}` + (isFreshMode() ? `?farsk=${Date.now()}` : "");
         const svar = await fetch(adress, { signal: styrning.signal });
-        if (!svar.ok) return {};
+        if (!svar.ok) return TOM_CONFIG;
         const data = await svar.json();
-        const design = data && data.design;
-        if (!design || typeof design !== "object") return {};
+        if (!data || typeof data !== "object") return TOM_CONFIG;
+        const design = data.design;
         const rensad = {};
-        for (const nyckel in design) {
-          const varde = design[nyckel];
-          if (!DESIGN_VARIABLES.has(nyckel)) continue;
-          if (typeof varde !== "string" || !varde || varde.length > 200) continue;
-          if (UNSAFE_VALUE.test(varde)) continue;
-          rensad[nyckel] = varde;
+        if (design && typeof design === "object") {
+          for (const nyckel in design) {
+            const varde = design[nyckel];
+            if (!DESIGN_VARIABLES.has(nyckel)) continue;
+            if (typeof varde !== "string" || !varde || varde.length > 200) continue;
+            if (UNSAFE_VALUE.test(varde)) continue;
+            rensad[nyckel] = varde;
+          }
         }
-        return rensad;
+        return { design: rensad, categories: sanitizeCategories(data.categories) };
       } catch (fel) {
-        log("[Design] Kunde inte hamta config:", fel && fel.message);
-        return {};
+        log("[Config] Kunde inte hamta config:", fel && fel.message);
+        return TOM_CONFIG;
       } finally {
         clearTimeout(klocka);
       }
@@ -1439,57 +1467,51 @@ button:hover {
     let configPromise = null;
     function ensureConfig() {
       if (!configPromise) {
-        configPromise = fetchConfig().then((design) => {
-          loadedDesign = design;
+        configPromise = fetchConfig().then((config) => {
+          loadedDesign = config.design;
+          loadedCategories = config.categories;
           applyDesign();
-          return design;
+          applyCategories();
+          return config;
         });
       }
       return configPromise;
+    }
+    function applyCategories() {
+      const behallare = el("settings-container");
+      if (!behallare) return;
+      behallare.innerHTML = renderCategoryCards();
     }
     if (!getCookie("consent_status")) ensureConfig();
     const META_PIXEL_ID = selfScript && selfScript.dataset && selfScript.dataset.metaPixelId || window.SEOS_META_PIXEL_ID || null;
     let metaPixelLoaded = false;
     const pageLang = (window.SEOS_COOKIE_LANG || document.documentElement.lang || "").split("-")[0].toLowerCase();
     const t = translations[pageLang] || translations["en"];
+    function kategoriTexter() {
+      return {
+        necessary: { etikett: t.necessaryLabel, text: t.necessaryDesc },
+        analytics: { etikett: t.analyticsLabel, text: t.analyticsDesc },
+        functional: { etikett: t.functionalLabel, text: t.functionalDesc },
+        marketing: { etikett: t.marketingLabel, text: t.marketingDesc }
+      };
+    }
     function renderCategoryCards() {
-      const kategorier = [
-        {
-          id: "necessary",
-          etikett: `${t.necessaryLabel} <span class="badge">${t.requiredBadge}</span>`,
-          text: t.necessaryDesc,
-          last: true
-        },
-        {
-          id: "performance",
-          reglage: "performance-toggle",
-          etikett: t.analyticsLabel,
-          text: t.analyticsDesc
-        },
-        {
-          id: "functional",
-          reglage: "functional-toggle",
-          etikett: t.functionalLabel,
-          text: t.functionalDesc
-        },
-        {
-          id: "marketing",
-          reglage: "marketing-toggle",
-          etikett: t.marketingLabel,
-          text: t.marketingDesc
-        }
-      ];
-      return kategorier.map((k) => {
-        const kortAttribut = k.last ? "" : ` data-handling="vaxla" data-reglage="${k.reglage}"`;
-        const knappAttribut = k.last ? 'class="toggle-switch always-active" aria-checked="true" disabled' : `class="toggle-switch" id="${k.reglage}" aria-checked="false"`;
+      const texter = kategoriTexter();
+      return activeCategories().map((kategori) => {
+        const text = texter[kategori.key];
+        if (!text) return "";
+        const reglage = `${kategori.key}-toggle`;
+        const etikett = kategori.is_required ? `${text.etikett} <span class="badge">${t.requiredBadge}</span>` : text.etikett;
+        const kortAttribut = kategori.is_required ? "" : ` data-handling="vaxla" data-reglage="${reglage}"`;
+        const knappAttribut = kategori.is_required ? 'class="toggle-switch always-active" aria-checked="true" disabled' : `class="toggle-switch" id="${reglage}" aria-checked="false"`;
         return `
           <div class="cookie-category-card"${kortAttribut}>
             <div class="category-text-wrapper">
-              <h5 id="etikett-${k.id}">${k.etikett}</h5>
-              <p id="text-${k.id}">${k.text}</p>
+              <h5 id="etikett-${kategori.key}">${etikett}</h5>
+              <p id="text-${kategori.key}">${text.text}</p>
             </div>
             <button type="button" role="switch" ${knappAttribut}
-              aria-labelledby="etikett-${k.id}" aria-describedby="text-${k.id}">
+              aria-labelledby="etikett-${kategori.key}" aria-describedby="text-${kategori.key}">
               <span class="toggle-slider"></span>
             </button>
           </div>`;
@@ -1740,11 +1762,13 @@ button:hover {
     }
     function acceptAllConsent() {
       const clientId = getOrCreateClientId();
+      const visade = {};
+      for (const kategori of activeCategories()) visade[kategori.key] = true;
       return {
         necessary: true,
-        analytics: true,
-        marketing: true,
-        functional: true,
+        analytics: visade.analytics === true,
+        marketing: visade.marketing === true,
+        functional: visade.functional === true,
         client_id: clientId,
         site_key: SITE_KEY,
         domain: window.location.hostname,
@@ -1960,9 +1984,10 @@ button:hover {
           element.setAttribute("aria-checked", isActive ? "true" : "false");
         }
       };
-      applyToggleState("performance-toggle", choices.analytics);
-      applyToggleState("marketing-toggle", choices.marketing);
-      applyToggleState("functional-toggle", choices.functional);
+      for (const kategori of activeCategories()) {
+        if (kategori.is_required) continue;
+        applyToggleState(`${kategori.key}-toggle`, choices[kategori.key] === true);
+      }
       showSettingsModal();
       setTimeout(() => {
         checkScrollStatus();
@@ -1986,9 +2011,14 @@ button:hover {
     }
     function saveSettings() {
       const clientId = getOrCreateClientId();
-      const analytics = el("performance-toggle")?.classList.contains("active") || false;
-      const marketing = el("marketing-toggle")?.classList.contains("active") || false;
-      const functional = el("functional-toggle")?.classList.contains("active") || false;
+      const val = { analytics: false, marketing: false, functional: false };
+      for (const kategori of activeCategories()) {
+        if (kategori.is_required) continue;
+        val[kategori.key] = el(`${kategori.key}-toggle`)?.classList.contains("active") || false;
+      }
+      const analytics = val.analytics;
+      const marketing = val.marketing;
+      const functional = val.functional;
       const payload = {
         necessary: true,
         analytics,
