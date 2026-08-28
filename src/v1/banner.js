@@ -1360,7 +1360,7 @@ button:hover {
     };
     const selfScript = document.currentScript || document.querySelector('script[src*="seos-cookie-banner"]');
     const SITE_KEY = selfScript && selfScript.dataset && selfScript.dataset.siteKey || window.SEOS_SITE_KEY || null;
-    const DESIGNVARIABLER = /* @__PURE__ */ new Set([
+    const DESIGN_VARIABLES = /* @__PURE__ */ new Set([
       "bg-main",
       "bg-muted",
       "text-main",
@@ -1390,18 +1390,18 @@ button:hover {
       "radius-md",
       "radius-lg"
     ]);
-    const FARLIGT_VARDE = /url\(|expression\(|javascript:|@import|[<>{}\\;]/i;
-    const DESIGN_TIDSGRANS_MS = 800;
-    let hamtadDesign = null;
-    function tillampaDesign() {
-      if (!hamtadDesign) return;
+    const UNSAFE_VALUE = /url\(|expression\(|javascript:|@import|[<>{}\\;]/i;
+    const CONFIG_TIMEOUT_MS = 800;
+    let loadedDesign = null;
+    function applyDesign() {
+      if (!loadedDesign) return;
       const host = document.getElementById(HOST_ID);
       if (!host) return;
-      for (const nyckel in hamtadDesign) {
-        host.style.setProperty("--" + nyckel, hamtadDesign[nyckel]);
+      for (const nyckel in loadedDesign) {
+        host.style.setProperty("--" + nyckel, loadedDesign[nyckel]);
       }
     }
-    function farsklage() {
+    function isFreshMode() {
       try {
         if (window.SEOS_FARSK) return true;
         return new URLSearchParams(window.location.search).has("seos_farsk");
@@ -1409,12 +1409,12 @@ button:hover {
         return false;
       }
     }
-    async function hamtaDesign() {
+    async function fetchConfig() {
       if (!SITE_KEY) return {};
       const styrning = new AbortController();
-      const klocka = setTimeout(() => styrning.abort(), DESIGN_TIDSGRANS_MS);
+      const klocka = setTimeout(() => styrning.abort(), CONFIG_TIMEOUT_MS);
       try {
-        const adress = `${API_BASE_URL}/config/${encodeURIComponent(SITE_KEY)}` + (farsklage() ? `?farsk=${Date.now()}` : "");
+        const adress = `${API_BASE_URL}/config/${encodeURIComponent(SITE_KEY)}` + (isFreshMode() ? `?farsk=${Date.now()}` : "");
         const svar = await fetch(adress, { signal: styrning.signal });
         if (!svar.ok) return {};
         const data = await svar.json();
@@ -1423,9 +1423,9 @@ button:hover {
         const rensad = {};
         for (const nyckel in design) {
           const varde = design[nyckel];
-          if (!DESIGNVARIABLER.has(nyckel)) continue;
+          if (!DESIGN_VARIABLES.has(nyckel)) continue;
           if (typeof varde !== "string" || !varde || varde.length > 200) continue;
-          if (FARLIGT_VARDE.test(varde)) continue;
+          if (UNSAFE_VALUE.test(varde)) continue;
           rensad[nyckel] = varde;
         }
         return rensad;
@@ -1436,23 +1436,23 @@ button:hover {
         clearTimeout(klocka);
       }
     }
-    let designLoftet = null;
-    function sakerstallDesign() {
-      if (!designLoftet) {
-        designLoftet = hamtaDesign().then((design) => {
-          hamtadDesign = design;
-          tillampaDesign();
+    let configPromise = null;
+    function ensureConfig() {
+      if (!configPromise) {
+        configPromise = fetchConfig().then((design) => {
+          loadedDesign = design;
+          applyDesign();
           return design;
         });
       }
-      return designLoftet;
+      return configPromise;
     }
-    if (!getCookie("consent_status")) sakerstallDesign();
+    if (!getCookie("consent_status")) ensureConfig();
     const META_PIXEL_ID = selfScript && selfScript.dataset && selfScript.dataset.metaPixelId || window.SEOS_META_PIXEL_ID || null;
     let metaPixelLoaded = false;
     const pageLang = (window.SEOS_COOKIE_LANG || document.documentElement.lang || "").split("-")[0].toLowerCase();
     const t = translations[pageLang] || translations["en"];
-    function kategoriKort() {
+    function renderCategoryCards() {
       const kategorier = [
         {
           id: "necessary",
@@ -1552,7 +1552,7 @@ button:hover {
           <p>${t.settingsBody}</p>
         </div>
         <div id="settings-container" class="cookie-settings-container">
-          ${kategoriKort()}
+          ${renderCategoryCards()}
         </div>
       </div>
       <div class="scroll-shadow" id="bottom-shadow"></div>
@@ -1592,11 +1592,11 @@ button:hover {
       const mall = document.createElement("template");
       mall.innerHTML = bannerHTML;
       shadow.appendChild(mall.content);
-      kopplaHandelser();
-      kopplaTangentbord();
-      kopplaRullning();
+      bindEvents();
+      bindKeyboard();
+      bindScroll();
     }
-    function kopplaHandelser() {
+    function bindEvents() {
       const handlingar = {
         visaPolicy: showPolicy,
         oppnaInstallningar: openSettings,
@@ -1664,19 +1664,19 @@ button:hover {
       return clientId;
     }
     let fokusFore = null;
-    function flyttaFokusTill(ruta) {
+    function moveFocusTo(ruta) {
       if (!ruta) return;
       ruta.focus();
     }
-    function kommIhagFokus() {
+    function rememberFocus() {
       const aktiv = shadow && shadow.activeElement ? shadow.activeElement : document.activeElement;
       if (aktiv) fokusFore = aktiv;
     }
-    function aterstallFokus() {
+    function restoreFocus() {
       if (fokusFore && typeof fokusFore.focus === "function") fokusFore.focus();
       fokusFore = null;
     }
-    function rullbarRuta(handelse) {
+    function scrollableBox(handelse) {
       const vag = typeof handelse.composedPath === "function" ? handelse.composedPath() : [];
       for (const nod of vag) {
         if (nod === shadow || nod === shadow.host) break;
@@ -1687,12 +1687,12 @@ button:hover {
       }
       return null;
     }
-    function kopplaRullning() {
+    function bindScroll() {
       if (!shadow) return;
       shadow.addEventListener(
         "wheel",
         (handelse) => {
-          const ruta = rullbarRuta(handelse);
+          const ruta = scrollableBox(handelse);
           if (!ruta) return;
           const nedat = handelse.deltaY > 0;
           const kanRullaVidare = nedat ? ruta.scrollTop < ruta.scrollHeight - ruta.clientHeight - 1 : ruta.scrollTop > 0;
@@ -1701,7 +1701,7 @@ button:hover {
         true
       );
     }
-    function kopplaTangentbord() {
+    function bindKeyboard() {
       shadow.addEventListener("keydown", (handelse) => {
         if (handelse.key !== "Escape") return;
         const installningar = el(SETTINGS_ID);
@@ -1725,18 +1725,18 @@ button:hover {
       el(BANNER_ID).style.display = "flex";
     }
     function showSettingsModal() {
-      kommIhagFokus();
+      rememberFocus();
       hideAllBanners();
       const ruta = el(SETTINGS_ID);
       ruta.style.display = "flex";
-      flyttaFokusTill(ruta);
+      moveFocusTo(ruta);
     }
     function showPolicyModal() {
-      kommIhagFokus();
+      rememberFocus();
       hideAllBanners();
       const ruta = el(POLICY_ID);
       ruta.style.display = "flex";
-      flyttaFokusTill(ruta);
+      moveFocusTo(ruta);
     }
     function acceptAllConsent() {
       const clientId = getOrCreateClientId();
@@ -1768,27 +1768,27 @@ button:hover {
         userAgent: navigator.userAgent
       };
     }
-    const KO_NYCKEL = "seos_consent_ko";
-    const KO_MAX_POSTER = 10;
-    const KO_MAX_ALDER_DAGAR = 30;
-    const KO_MAX_FORSOK = 5;
-    function lasKo() {
+    const QUEUE_KEY = "seos_consent_ko";
+    const QUEUE_MAX_ITEMS = 10;
+    const QUEUE_MAX_AGE_DAYS = 30;
+    const QUEUE_MAX_ATTEMPTS = 5;
+    function readQueue() {
       try {
-        const rad = window.localStorage.getItem(KO_NYCKEL);
+        const rad = window.localStorage.getItem(QUEUE_KEY);
         const ko = rad ? JSON.parse(rad) : [];
         return Array.isArray(ko) ? ko : [];
       } catch (e) {
         return [];
       }
     }
-    function skrivKo(ko) {
+    function writeQueue(ko) {
       try {
-        if (ko.length) window.localStorage.setItem(KO_NYCKEL, JSON.stringify(ko));
-        else window.localStorage.removeItem(KO_NYCKEL);
+        if (ko.length) window.localStorage.setItem(QUEUE_KEY, JSON.stringify(ko));
+        else window.localStorage.removeItem(QUEUE_KEY);
       } catch (e) {
       }
     }
-    async function postaConsent(payload) {
+    async function postConsent(payload) {
       try {
         const svar = await fetch(`${API_BASE_URL}/consent`, {
           method: "POST",
@@ -1811,30 +1811,30 @@ button:hover {
         return "fel";
       }
     }
-    function koaConsent(payload) {
-      const ko = lasKo();
+    function queueConsent(payload) {
+      const ko = readQueue();
       ko.push({ payload, forsok: 0 });
-      skrivKo(ko.slice(-KO_MAX_POSTER));
-      log("[Ko] Samtycke koat, poster i ko:", Math.min(ko.length, KO_MAX_POSTER));
+      writeQueue(ko.slice(-QUEUE_MAX_ITEMS));
+      log("[Ko] Samtycke koat, poster i ko:", Math.min(ko.length, QUEUE_MAX_ITEMS));
     }
-    async function tomKo() {
-      const ko = lasKo();
+    async function flushQueue() {
+      const ko = readQueue();
       if (!ko.length) return;
       const kvar = [];
       for (const post of ko) {
         const alder = Date.now() - new Date(post.payload.timestamp).getTime();
-        if (!(alder < KO_MAX_ALDER_DAGAR * 864e5)) continue;
-        const resultat = await postaConsent(post.payload);
+        if (!(alder < QUEUE_MAX_AGE_DAYS * 864e5)) continue;
+        const resultat = await postConsent(post.payload);
         if (resultat === "ok" || resultat === "avvisad") continue;
         post.forsok += 1;
-        if (post.forsok < KO_MAX_FORSOK) kvar.push(post);
+        if (post.forsok < QUEUE_MAX_ATTEMPTS) kvar.push(post);
       }
-      skrivKo(kvar);
+      writeQueue(kvar);
       if (ko.length !== kvar.length) log("[Ko] Skickade", ko.length - kvar.length, "koade samtycken");
     }
     async function saveConsentAndSend(payload) {
-      const resultat = await postaConsent(payload);
-      if (resultat === "fel") koaConsent(payload);
+      const resultat = await postConsent(payload);
+      if (resultat === "fel") queueConsent(payload);
     }
     function applyGoogleConsentFromPayload(payload) {
       if (typeof gtag !== "function") {
@@ -1937,8 +1937,8 @@ button:hover {
       saveConsentAndSend(payload);
     }
     async function openSettings() {
-      await sakerstallDesign();
-      tillampaDesign();
+      await ensureConfig();
+      applyDesign();
       let choices = { analytics: false, marketing: false, functional: false };
       const status = getCookie("consent_status");
       const choicesJson = getCookie("consent_choices");
@@ -2015,7 +2015,7 @@ button:hover {
     }
     function backToBanner() {
       showCookieBanner();
-      aterstallFokus();
+      restoreFocus();
     }
     function closePolicy() {
       if (getCookie("consent_status")) {
@@ -2023,7 +2023,7 @@ button:hover {
       } else {
         showCookieBanner();
       }
-      aterstallFokus();
+      restoreFocus();
     }
     function toggleCookie(element) {
       if (!element) return;
@@ -2031,8 +2031,8 @@ button:hover {
       element.setAttribute("aria-checked", pa ? "true" : "false");
     }
     async function showPolicy() {
-      await sakerstallDesign();
-      tillampaDesign();
+      await ensureConfig();
+      applyDesign();
       const domain = window.location.hostname;
       const policyUrl = `${API_BASE_URL}/consent/policy/latest?domain=${domain}`;
       showPolicyModal();
@@ -2104,7 +2104,7 @@ button:hover {
     }
     function initializeBanner() {
       injectBannerHTML();
-      tillampaDesign();
+      applyDesign();
       const webflowLink = document.getElementById("open-cookie-settings");
       if (webflowLink) {
         webflowLink.addEventListener("click", (e) => {
@@ -2115,15 +2115,15 @@ button:hover {
       setTimeout(async () => {
         getOrCreateClientId();
         loadAndApplySavedConsent();
-        tomKo();
+        flushQueue();
         const consentStatus = getCookie("consent_status");
         if (consentStatus) {
           hideAllBanners();
           log("[Init] Consent found - banner hidden");
           return;
         }
-        await sakerstallDesign();
-        tillampaDesign();
+        await ensureConfig();
+        applyDesign();
         showCookieBanner();
         log("[Init] No consent - showing banner");
       }, 50);

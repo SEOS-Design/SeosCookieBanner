@@ -159,7 +159,7 @@ import bannerCss from './style.css';
   // ska vara lika pa alla sajter - bannern ska kannas som samma komponent
   // overallt men bara kundens uttryck. Ser storleken fel ut ska basvardet i
   // style.css rattas, sa att andringen nar alla sajter.
-  const DESIGNVARIABLER = new Set([
+  const DESIGN_VARIABLES = new Set([
     'bg-main',
     'bg-muted',
     'text-main',
@@ -194,23 +194,23 @@ import bannerCss from './style.css';
   // vi inte valt vore en vag att spara besokare. API:t filtrerar redan, men en
   // banner som litar blint pa ett svar ar en banner som bryts den dagen svaret
   // inte kommer fran oss.
-  const FARLIGT_VARDE = /url\(|expression\(|javascript:|@import|[<>{}\\;]/i;
+  const UNSAFE_VALUE = /url\(|expression\(|javascript:|@import|[<>{}\\;]/i;
 
   // Hur lange bannern vantar pa designen innan den visar sig anda. Vid trafik
   // ligger svaret pa CDN:et och kommer pa nagra tiotals millisekunder; grensen
   // slar bara till vid kall cache eller stromavbrott i andra anden.
-  const DESIGN_TIDSGRANS_MS = 800;
+  const CONFIG_TIMEOUT_MS = 800;
 
-  let hamtadDesign = null;
+  let loadedDesign = null;
 
   /** Skriver de hamtade vardena som CSS-variabler pa vardelementet. */
-  function tillampaDesign() {
-    if (!hamtadDesign) return;
+  function applyDesign() {
+    if (!loadedDesign) return;
     const host = document.getElementById(HOST_ID);
     if (!host) return;
 
-    for (const nyckel in hamtadDesign) {
-      host.style.setProperty('--' + nyckel, hamtadDesign[nyckel]);
+    for (const nyckel in loadedDesign) {
+      host.style.setProperty('--' + nyckel, loadedDesign[nyckel]);
     }
   }
 
@@ -226,7 +226,7 @@ import bannerCss from './style.css';
    * och det ar en manniska at gangen. Ger heller ingen ny angreppsyta -
    * policy-endpointen ar redan ocachad och traffar databasen pa samma satt.
    */
-  function farsklage() {
+  function isFreshMode() {
     try {
       if (window.SEOS_FARSK) return true;
       return new URLSearchParams(window.location.search).has('seos_farsk');
@@ -235,19 +235,19 @@ import bannerCss from './style.css';
     }
   }
 
-  async function hamtaDesign() {
+  async function fetchConfig() {
     // Utan site key finns inget att sla upp. Bannern kor sina standardvarden.
     if (!SITE_KEY) return {};
 
     const styrning = new AbortController();
-    const klocka = setTimeout(() => styrning.abort(), DESIGN_TIDSGRANS_MS);
+    const klocka = setTimeout(() => styrning.abort(), CONFIG_TIMEOUT_MS);
 
     try {
       // Tidsstampeln gor adressen unik, sa CDN:et inte kan svara ur cachen.
       // API:t ser samma parameter och hoppar over sin egen minnescache.
       const adress =
         `${API_BASE_URL}/config/${encodeURIComponent(SITE_KEY)}` +
-        (farsklage() ? `?farsk=${Date.now()}` : '');
+        (isFreshMode() ? `?farsk=${Date.now()}` : '');
 
       const svar = await fetch(adress, { signal: styrning.signal });
       if (!svar.ok) return {};
@@ -259,9 +259,9 @@ import bannerCss from './style.css';
       const rensad = {};
       for (const nyckel in design) {
         const varde = design[nyckel];
-        if (!DESIGNVARIABLER.has(nyckel)) continue;
+        if (!DESIGN_VARIABLES.has(nyckel)) continue;
         if (typeof varde !== 'string' || !varde || varde.length > 200) continue;
-        if (FARLIGT_VARDE.test(varde)) continue;
+        if (UNSAFE_VALUE.test(varde)) continue;
         rensad[nyckel] = varde;
       }
       return rensad;
@@ -276,18 +276,18 @@ import bannerCss from './style.css';
     }
   }
 
-  let designLoftet = null;
+  let configPromise = null;
 
   /** Hamtar designen hogst en gang, oavsett hur manga som fragar. */
-  function sakerstallDesign() {
-    if (!designLoftet) {
-      designLoftet = hamtaDesign().then((design) => {
-        hamtadDesign = design;
-        tillampaDesign();
+  function ensureConfig() {
+    if (!configPromise) {
+      configPromise = fetchConfig().then((design) => {
+        loadedDesign = design;
+        applyDesign();
         return design;
       });
     }
-    return designLoftet;
+    return configPromise;
   }
 
   // HAMTAS BARA NAR DEN BEHOVS.
@@ -306,7 +306,7 @@ import bannerCss from './style.css';
   // Startas HAR och inte i initializeBanner(): da loper hamtningen parallellt
   // med att sidan bygger klart och med de 50 ms som initieringen anda vantar.
   // Svaret ar darfor oftast framme innan bannern ska visas.
-  if (!getCookie('consent_status')) sakerstallDesign();
+  if (!getCookie('consent_status')) ensureConfig();
 
   // Meta-pixel: sätt data-meta-pixel-id på scripttaggen sa laddar bannern
   // pixeln FORST vid samtycke till marknadsforing. Ingen pixelkod ska ligga
@@ -333,7 +333,7 @@ import bannerCss from './style.css';
   // skarmlasare, och da kan besokaren inte gora ett specifikt val per kategori.
   // Kortet i sin helhet ar fortfarande klickbart: klicket bubblar upp fran
   // knappen till kortets data-handling, sa bada vagarna ger exakt ett omslag.
-  function kategoriKort() {
+  function renderCategoryCards() {
     const kategorier = [
       {
         id: 'necessary',
@@ -445,7 +445,7 @@ import bannerCss from './style.css';
           <p>${t.settingsBody}</p>
         </div>
         <div id="settings-container" class="cookie-settings-container">
-          ${kategoriKort()}
+          ${renderCategoryCards()}
         </div>
       </div>
       <div class="scroll-shadow" id="bottom-shadow"></div>
@@ -493,14 +493,14 @@ import bannerCss from './style.css';
     mall.innerHTML = bannerHTML;
     shadow.appendChild(mall.content);
 
-    kopplaHandelser();
-    kopplaTangentbord();
-    kopplaRullning();
+    bindEvents();
+    bindKeyboard();
+    bindScroll();
   }
 
   // En enda lyssnare pa skuggroten i stallet for atta inline-onclick. Klick
   // bubblar upp hit, och data-handling avgor vad som ska kora.
-  function kopplaHandelser() {
+  function bindEvents() {
     const handlingar = {
       visaPolicy: showPolicy,
       oppnaInstallningar: openSettings,
@@ -602,7 +602,7 @@ import bannerCss from './style.css';
   // hela sidan ar dessutom tveksam ur samtyckessynpunkt.
   let fokusFore = null;
 
-  function flyttaFokusTill(ruta) {
+  function moveFocusTo(ruta) {
     if (!ruta) return;
     // Fokus gar till RUTAN, inte till forsta knappen. Da laser skarmlasaren upp
     // rubriken (via aria-labelledby) i stallet for att kasta in anvandaren mitt i
@@ -614,12 +614,12 @@ import bannerCss from './style.css';
     ruta.focus();
   }
 
-  function kommIhagFokus() {
+  function rememberFocus() {
     const aktiv = shadow && shadow.activeElement ? shadow.activeElement : document.activeElement;
     if (aktiv) fokusFore = aktiv;
   }
 
-  function aterstallFokus() {
+  function restoreFocus() {
     if (fokusFore && typeof fokusFore.focus === 'function') fokusFore.focus();
     fokusFore = null;
   }
@@ -656,7 +656,7 @@ import bannerCss from './style.css';
   //
   // Losningen ar oberoende av vilket bibliotek kunden anvander - vi ror
   // aldrig deras kod, bara var egen handelse.
-  function rullbarRuta(handelse) {
+  function scrollableBox(handelse) {
     const vag = typeof handelse.composedPath === 'function' ? handelse.composedPath() : [];
     for (const nod of vag) {
       // Stanna vid skuggans kant: utanfor den ar det kundens sida.
@@ -669,12 +669,12 @@ import bannerCss from './style.css';
     return null;
   }
 
-  function kopplaRullning() {
+  function bindScroll() {
     if (!shadow) return;
     shadow.addEventListener(
       'wheel',
       (handelse) => {
-        const ruta = rullbarRuta(handelse);
+        const ruta = scrollableBox(handelse);
         if (!ruta) return;
 
         const nedat = handelse.deltaY > 0;
@@ -689,7 +689,7 @@ import bannerCss from './style.css';
     );
   }
 
-  function kopplaTangentbord() {
+  function bindKeyboard() {
     shadow.addEventListener('keydown', (handelse) => {
       if (handelse.key !== 'Escape') return;
       const installningar = el(SETTINGS_ID);
@@ -716,19 +716,19 @@ import bannerCss from './style.css';
   }
 
   function showSettingsModal() {
-    kommIhagFokus();
+    rememberFocus();
     hideAllBanners();
     const ruta = el(SETTINGS_ID);
     ruta.style.display = 'flex';
-    flyttaFokusTill(ruta);
+    moveFocusTo(ruta);
   }
 
   function showPolicyModal() {
-    kommIhagFokus();
+    rememberFocus();
     hideAllBanners();
     const ruta = el(POLICY_ID);
     ruta.style.display = 'flex';
-    flyttaFokusTill(ruta);
+    moveFocusTo(ruta);
   }
 
   //========================================================================
@@ -786,14 +786,14 @@ import bannerCss from './style.css';
   // Beviset forblir sant aven nar det kommer fram sent: samtyckets tidsstampel
   // ligger i det som skickas, sa ett koat samtycke loggas med tidpunkten da
   // besokaren faktiskt klickade - inte nar det rakade na fram.
-  const KO_NYCKEL = 'seos_consent_ko';
-  const KO_MAX_POSTER = 10;
-  const KO_MAX_ALDER_DAGAR = 30;
-  const KO_MAX_FORSOK = 5;
+  const QUEUE_KEY = 'seos_consent_ko';
+  const QUEUE_MAX_ITEMS = 10;
+  const QUEUE_MAX_AGE_DAYS = 30;
+  const QUEUE_MAX_ATTEMPTS = 5;
 
-  function lasKo() {
+  function readQueue() {
     try {
-      const rad = window.localStorage.getItem(KO_NYCKEL);
+      const rad = window.localStorage.getItem(QUEUE_KEY);
       const ko = rad ? JSON.parse(rad) : [];
       return Array.isArray(ko) ? ko : [];
     } catch (e) {
@@ -803,17 +803,17 @@ import bannerCss from './style.css';
     }
   }
 
-  function skrivKo(ko) {
+  function writeQueue(ko) {
     try {
-      if (ko.length) window.localStorage.setItem(KO_NYCKEL, JSON.stringify(ko));
-      else window.localStorage.removeItem(KO_NYCKEL);
+      if (ko.length) window.localStorage.setItem(QUEUE_KEY, JSON.stringify(ko));
+      else window.localStorage.removeItem(QUEUE_KEY);
     } catch (e) {
       /* tyst: en ko som inte kan sparas ar battre an ett kraschat samtycke */
     }
   }
 
   /** Returnerar 'ok' | 'avvisad' (meningslost att forsoka igen) | 'fel'. */
-  async function postaConsent(payload) {
+  async function postConsent(payload) {
     try {
       const svar = await fetch(`${API_BASE_URL}/consent`, {
         method: 'POST',
@@ -842,19 +842,19 @@ import bannerCss from './style.css';
     }
   }
 
-  function koaConsent(payload) {
-    const ko = lasKo();
+  function queueConsent(payload) {
+    const ko = readQueue();
     ko.push({ payload, forsok: 0 });
     // Behall de senaste. En besokare som surfar offline lange ska inte kunna
     // fylla sitt eget lagringsutrymme.
-    skrivKo(ko.slice(-KO_MAX_POSTER));
-    log('[Ko] Samtycke koat, poster i ko:', Math.min(ko.length, KO_MAX_POSTER));
+    writeQueue(ko.slice(-QUEUE_MAX_ITEMS));
+    log('[Ko] Samtycke koat, poster i ko:', Math.min(ko.length, QUEUE_MAX_ITEMS));
   }
 
   // Toms vid varje sidladdning. Kors efter att bannern ritats sa den aldrig
   // fordrojer det besokaren ser.
-  async function tomKo() {
-    const ko = lasKo();
+  async function flushQueue() {
+    const ko = readQueue();
     if (!ko.length) return;
 
     const kvar = [];
@@ -862,22 +862,22 @@ import bannerCss from './style.css';
       // Ett samtycke aldre an cookiens livslangd ar inte langre aktuellt -
       // besokaren har for lange sedan fatt fragan igen.
       const alder = Date.now() - new Date(post.payload.timestamp).getTime();
-      if (!(alder < KO_MAX_ALDER_DAGAR * 86400000)) continue;
+      if (!(alder < QUEUE_MAX_AGE_DAYS * 86400000)) continue;
 
-      const resultat = await postaConsent(post.payload);
+      const resultat = await postConsent(post.payload);
       if (resultat === 'ok' || resultat === 'avvisad') continue;
 
       post.forsok += 1;
-      if (post.forsok < KO_MAX_FORSOK) kvar.push(post);
+      if (post.forsok < QUEUE_MAX_ATTEMPTS) kvar.push(post);
     }
 
-    skrivKo(kvar);
+    writeQueue(kvar);
     if (ko.length !== kvar.length) log('[Ko] Skickade', ko.length - kvar.length, 'koade samtycken');
   }
 
   async function saveConsentAndSend(payload) {
-    const resultat = await postaConsent(payload);
-    if (resultat === 'fel') koaConsent(payload);
+    const resultat = await postConsent(payload);
+    if (resultat === 'fel') queueConsent(payload);
   }
 
   //========================================================================
@@ -1029,8 +1029,8 @@ import bannerCss from './style.css';
     // Nu ska en ruta oppnas, sa den behovs. Vantan har egen tidsgrans och
     // svaret ligger nastan alltid pa CDN:et; uteblir det oppnas rutan med
     // standardvardena i stallet for att inte oppnas alls.
-    await sakerstallDesign();
-    tillampaDesign();
+    await ensureConfig();
+    applyDesign();
 
     let choices = { analytics: false, marketing: false, functional: false };
 
@@ -1130,7 +1130,7 @@ import bannerCss from './style.css';
 
   function backToBanner() {
     showCookieBanner();
-    aterstallFokus();
+    restoreFocus();
   }
 
   function closePolicy() {
@@ -1139,7 +1139,7 @@ import bannerCss from './style.css';
     } else {
       showCookieBanner();
     }
-    aterstallFokus();
+    restoreFocus();
   }
 
   function toggleCookie(element) {
@@ -1157,8 +1157,8 @@ import bannerCss from './style.css';
   async function showPolicy() {
     // Som i openSettings: nas via window.showPolicy() aven av den som redan
     // samtyckt, och da har designen aldrig hamtats.
-    await sakerstallDesign();
-    tillampaDesign();
+    await ensureConfig();
+    applyDesign();
 
     const domain = window.location.hostname;
     const policyUrl = `${API_BASE_URL}/consent/policy/latest?domain=${domain}`;
@@ -1250,7 +1250,7 @@ import bannerCss from './style.css';
     injectBannerHTML();
 
     // Designen kan ha hunnit fram innan vardelementet fanns. Applicera nu.
-    tillampaDesign();
+    applyDesign();
 
     // Ligger pa KUNDENS sida, utanfor skuggan - darfor document och inte el().
     const webflowLink = document.getElementById('open-cookie-settings');
@@ -1268,7 +1268,7 @@ import bannerCss from './style.css';
 
       // Skickar samtycken som inte kom fram tidigare. Ligger sist och utan await:
       // besokaren ska aldrig vanta pa var bevislogg.
-      tomKo();
+      flushQueue();
 
       // De tre raderna ovan ligger FORE vantan pa designen med flit. De ror
       // samtycket - Googles signaler och var bevislogg - och far aldrig
@@ -1286,10 +1286,10 @@ import bannerCss from './style.css';
       // brevenshus fran mork till beige. En cookiebanner som blinkar om ser
       // trasig ut, och fortroende ar hela poangen med den har produkten.
       //
-      // Vantan har redan en tidsgrans inbyggd (se hamtaDesign) och kan darfor
+      // Vantan har redan en tidsgrans inbyggd (se fetchConfig) och kan darfor
       // inte hanga: uteblir svaret visas bannern med sina standardvarden.
-      await sakerstallDesign();
-      tillampaDesign();
+      await ensureConfig();
+      applyDesign();
 
       showCookieBanner();
       log('[Init] No consent - showing banner');
