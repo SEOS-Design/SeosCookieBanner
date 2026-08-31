@@ -1445,11 +1445,44 @@ button:hover {
     const CONFIG_TIMEOUT_MS = 800;
     let loadedDesign = null;
     let loadedCategories = null;
+    let loadedTexts = null;
     function activeCategories() {
       return loadedCategories && loadedCategories.length ? loadedCategories : DEFAULT_CATEGORIES;
     }
     function toggleCategories() {
       return activeCategories().filter((kategori) => kategori.visibility !== "notice");
+    }
+    const TEXT_LANGUAGES = /* @__PURE__ */ new Set(["sv", "en"]);
+    const TEXT_FIELDS = /* @__PURE__ */ new Set(["label", "description", "notice"]);
+    const MAX_TEXT_LENGTH = 300;
+    const UNSAFE_TEXT = /[<>]/;
+    function isValidText(varde) {
+      return typeof varde === "string" && varde.trim().length > 0 && varde.length <= MAX_TEXT_LENGTH && !UNSAFE_TEXT.test(varde);
+    }
+    function sanitizeTexts(texts) {
+      if (!texts || typeof texts !== "object" || Array.isArray(texts)) return {};
+      const rensad = {};
+      for (const sprak in texts) {
+        if (!TEXT_LANGUAGES.has(sprak)) continue;
+        const kategorier = texts[sprak];
+        if (!kategorier || typeof kategorier !== "object" || Array.isArray(kategorier)) continue;
+        const perKategori = {};
+        for (const kategori in kategorier) {
+          if (CATEGORY_KEYS.indexOf(kategori) === -1) continue;
+          const falt = kategorier[kategori];
+          if (!falt || typeof falt !== "object" || Array.isArray(falt)) continue;
+          const perFalt = {};
+          for (const namn in falt) {
+            if (!TEXT_FIELDS.has(namn)) continue;
+            if (kategori === "necessary" && namn === "notice") continue;
+            if (!isValidText(falt[namn])) continue;
+            perFalt[namn] = falt[namn];
+          }
+          if (Object.keys(perFalt).length > 0) perKategori[kategori] = perFalt;
+        }
+        if (Object.keys(perKategori).length > 0) rensad[sprak] = perKategori;
+      }
+      return rensad;
     }
     function applyDesign() {
       if (!loadedDesign) return;
@@ -1467,7 +1500,7 @@ button:hover {
         return false;
       }
     }
-    const TOM_CONFIG = { design: {}, categories: [] };
+    const TOM_CONFIG = { design: {}, categories: [], texts: {} };
     async function fetchConfig() {
       if (!SITE_KEY) return TOM_CONFIG;
       const styrning = new AbortController();
@@ -1489,7 +1522,11 @@ button:hover {
             rensad[nyckel] = varde;
           }
         }
-        return { design: rensad, categories: sanitizeCategories(data.categories) };
+        return {
+          design: rensad,
+          categories: sanitizeCategories(data.categories),
+          texts: sanitizeTexts(data.texts)
+        };
       } catch (fel) {
         log("[Config] Kunde inte hamta config:", fel && fel.message);
         return TOM_CONFIG;
@@ -1503,6 +1540,7 @@ button:hover {
         configPromise = fetchConfig().then((config) => {
           loadedDesign = config.design;
           loadedCategories = config.categories;
+          loadedTexts = config.texts;
           applyDesign();
           applyCategories();
           return config;
@@ -1513,52 +1551,93 @@ button:hover {
     function applyCategories() {
       const behallare = el("settings-container");
       if (!behallare) return;
-      behallare.innerHTML = renderCategoryCards();
+      behallare.textContent = "";
+      renderCategoryCards(behallare);
     }
     if (!getCookie("consent_status")) ensureConfig();
     const META_PIXEL_ID = selfScript && selfScript.dataset && selfScript.dataset.metaPixelId || window.SEOS_META_PIXEL_ID || null;
     let metaPixelLoaded = false;
     const pageLang = (window.SEOS_COOKIE_LANG || document.documentElement.lang || "").split("-")[0].toLowerCase();
     const t = translations[pageLang] || translations["en"];
+    const textLang = translations[pageLang] ? pageLang : "en";
     function kategoriTexter() {
+      const egna = loadedTexts && loadedTexts[textLang] || {};
+      const valj = (nyckel, falt, standard) => {
+        const rad = egna[nyckel];
+        return rad && typeof rad[falt] === "string" ? rad[falt] : standard;
+      };
       return {
-        necessary: { etikett: t.necessaryLabel, text: t.necessaryDesc },
-        analytics: { etikett: t.analyticsLabel, text: t.analyticsDesc, saknas: t.analyticsNone },
-        functional: { etikett: t.functionalLabel, text: t.functionalDesc, saknas: t.functionalNone },
-        marketing: { etikett: t.marketingLabel, text: t.marketingDesc, saknas: t.marketingNone }
+        necessary: {
+          etikett: valj("necessary", "label", t.necessaryLabel),
+          text: valj("necessary", "description", t.necessaryDesc)
+        },
+        analytics: {
+          etikett: valj("analytics", "label", t.analyticsLabel),
+          text: valj("analytics", "description", t.analyticsDesc),
+          saknas: valj("analytics", "notice", t.analyticsNone)
+        },
+        functional: {
+          etikett: valj("functional", "label", t.functionalLabel),
+          text: valj("functional", "description", t.functionalDesc),
+          saknas: valj("functional", "notice", t.functionalNone)
+        },
+        marketing: {
+          etikett: valj("marketing", "label", t.marketingLabel),
+          text: valj("marketing", "description", t.marketingDesc),
+          saknas: valj("marketing", "notice", t.marketingNone)
+        }
       };
     }
-    function renderCategoryCards() {
+    function renderCategoryCards(behallare) {
       const texter = kategoriTexter();
-      return activeCategories().map((kategori) => {
+      for (const kategori of activeCategories()) {
         const text = texter[kategori.key];
-        if (!text) return "";
-        if (kategori.visibility === "notice") {
-          if (!text.saknas) return "";
-          return `
-          <div class="cookie-category-card category-notice">
-            <div class="category-text-wrapper">
-              <h5 id="etikett-${kategori.key}">${text.etikett}</h5>
-              <p id="text-${kategori.key}">${text.saknas}</p>
-            </div>
-          </div>`;
+        if (!text) continue;
+        if (kategori.visibility === "notice" && !text.saknas) continue;
+        const besked = kategori.visibility === "notice";
+        const kort = document.createElement("div");
+        kort.className = besked ? "cookie-category-card category-notice" : "cookie-category-card";
+        const omslag = document.createElement("div");
+        omslag.className = "category-text-wrapper";
+        const rubrik = document.createElement("h5");
+        rubrik.id = `etikett-${kategori.key}`;
+        rubrik.textContent = text.etikett;
+        const brodtext = document.createElement("p");
+        brodtext.id = `text-${kategori.key}`;
+        brodtext.textContent = besked ? text.saknas : text.text;
+        omslag.append(rubrik, brodtext);
+        kort.appendChild(omslag);
+        if (besked) {
+          behallare.appendChild(kort);
+          continue;
         }
-        const reglage = `${kategori.key}-toggle`;
-        const etikett = kategori.is_required ? `${text.etikett} <span class="badge">${t.requiredBadge}</span>` : text.etikett;
-        const kortAttribut = kategori.is_required ? "" : ` data-handling="vaxla" data-reglage="${reglage}"`;
-        const knappAttribut = kategori.is_required ? 'class="toggle-switch always-active" aria-checked="true" disabled' : `class="toggle-switch" id="${reglage}" aria-checked="false"`;
-        return `
-          <div class="cookie-category-card"${kortAttribut}>
-            <div class="category-text-wrapper">
-              <h5 id="etikett-${kategori.key}">${etikett}</h5>
-              <p id="text-${kategori.key}">${text.text}</p>
-            </div>
-            <button type="button" role="switch" ${knappAttribut}
-              aria-labelledby="etikett-${kategori.key}" aria-describedby="text-${kategori.key}">
-              <span class="toggle-slider"></span>
-            </button>
-          </div>`;
-      }).join("");
+        const knapp = document.createElement("button");
+        knapp.type = "button";
+        knapp.setAttribute("role", "switch");
+        knapp.setAttribute("aria-labelledby", rubrik.id);
+        knapp.setAttribute("aria-describedby", brodtext.id);
+        if (kategori.is_required) {
+          const marke = document.createElement("span");
+          marke.className = "badge";
+          marke.textContent = t.requiredBadge;
+          rubrik.append(" ", marke);
+          knapp.className = "toggle-switch always-active";
+          knapp.setAttribute("aria-checked", "true");
+          knapp.disabled = true;
+        } else {
+          const reglage = `${kategori.key}-toggle`;
+          kort.dataset.handling = "vaxla";
+          kort.dataset.reglage = reglage;
+          knapp.className = "toggle-switch";
+          knapp.id = reglage;
+          knapp.setAttribute("aria-checked", "false");
+        }
+        const slider = document.createElement("span");
+        slider.className = "toggle-slider";
+        knapp.appendChild(slider);
+        kort.appendChild(knapp);
+        behallare.appendChild(kort);
+      }
     }
     function injectBannerHTML() {
       if (document.getElementById(HOST_ID)) return;
@@ -1616,9 +1695,7 @@ button:hover {
         <div class="cookie-body">
           <p>${t.settingsBody}</p>
         </div>
-        <div id="settings-container" class="cookie-settings-container">
-          ${renderCategoryCards()}
-        </div>
+        <div id="settings-container" class="cookie-settings-container"></div>
       </div>
       <div class="scroll-shadow" id="bottom-shadow"></div>
       <div class="cookie-buttons">
@@ -1657,6 +1734,7 @@ button:hover {
       const mall = document.createElement("template");
       mall.innerHTML = bannerHTML;
       shadow.appendChild(mall.content);
+      applyCategories();
       bindEvents();
       bindKeyboard();
       bindScroll();

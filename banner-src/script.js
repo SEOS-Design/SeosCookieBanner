@@ -286,6 +286,7 @@ import bannerCss from './style.css';
 
   let loadedDesign = null;
   let loadedCategories = null;
+  let loadedTexts = null;
 
   /** Alla kort som ska ritas - bade reglage och besked. */
   function activeCategories() {
@@ -306,6 +307,85 @@ import bannerCss from './style.css';
    */
   function toggleCategories() {
     return activeCategories().filter((kategori) => kategori.visibility !== 'notice');
+  }
+
+  //========================================================================
+  // TEXTER FRÅN DATABASEN (C1 steg 3)
+  //========================================================================
+  //
+  // Sajten kan skriva över bannerns egna texter, nyckel för nyckel. Den
+  // ERSÄTTER dem inte: ett fält som saknas, ett språk som inte är ifyllt eller
+  // ett uteblivet svar betyder att bannerns egen text används.
+  //
+  // Felriktningen är hela poängen. Går configen inte fram ritas ändå en
+  // komplett ruta. Med databasen som enda källa hade ett nätverksfel gett en
+  // banner utan ord — värre än den banner med för många val som redan är
+  // genomtänkt för kategorierna.
+  //
+  // ⚠️ DET HÄR ÄR STEGET SOM BÄR XSS-RISKEN, OCH SÅ HÄR ÄR DEN BORTA:
+  // korten byggs med createElement och textContent, aldrig som en HTML-sträng.
+  // Ett värde som innehåller <img onerror=...> blir därför synliga bokstäver,
+  // inte kod. Hålet finns inte — det är inte skyddat mot.
+  //
+  // ⚠️ SKRIV ALDRIG OM renderCategoryCards() TILL innerHTML. Hela beslutet
+  // vilar på den raden. Ett enda undantag återinför ytan.
+  //
+  // Kontrollerna nedan är djupförsvar ovanpå det, och en KOPIA av API:ts —
+  // precis som med designvariablerna och kategorierna. Driver de isär gäller
+  // snittet: en text slutar gälla, i stället för att en okänd text börjar
+  // ritas. Fel åt rätt håll.
+
+  const TEXT_LANGUAGES = new Set(['sv', 'en']);
+  const TEXT_FIELDS = new Set(['label', 'description', 'notice']);
+  const MAX_TEXT_LENGTH = 300;
+  const UNSAFE_TEXT = /[<>]/;
+
+  function isValidText(varde) {
+    return (
+      typeof varde === 'string' &&
+      varde.trim().length > 0 &&
+      varde.length <= MAX_TEXT_LENGTH &&
+      !UNSAFE_TEXT.test(varde)
+    );
+  }
+
+  /** Släpper bara igenom kända språk, kända kategorier och kända fält. */
+  function sanitizeTexts(texts) {
+    if (!texts || typeof texts !== 'object' || Array.isArray(texts)) return {};
+
+    const rensad = {};
+
+    for (const sprak in texts) {
+      if (!TEXT_LANGUAGES.has(sprak)) continue;
+      const kategorier = texts[sprak];
+      if (!kategorier || typeof kategorier !== 'object' || Array.isArray(kategorier)) continue;
+
+      const perKategori = {};
+
+      for (const kategori in kategorier) {
+        if (CATEGORY_KEYS.indexOf(kategori) === -1) continue;
+        const falt = kategorier[kategori];
+        if (!falt || typeof falt !== 'object' || Array.isArray(falt)) continue;
+
+        const perFalt = {};
+
+        for (const namn in falt) {
+          if (!TEXT_FIELDS.has(namn)) continue;
+          // NÖDVÄNDIGA KAN ALDRIG BLI ETT BESKED. Samma invariant som i
+          // sanitizeCategories, och av samma skäl: bannern sätter sin egen
+          // samtyckescookie, så det finns inget läge där beskedet vore sant.
+          if (kategori === 'necessary' && namn === 'notice') continue;
+          if (!isValidText(falt[namn])) continue;
+          perFalt[namn] = falt[namn];
+        }
+
+        if (Object.keys(perFalt).length > 0) perKategori[kategori] = perFalt;
+      }
+
+      if (Object.keys(perKategori).length > 0) rensad[sprak] = perKategori;
+    }
+
+    return rensad;
   }
 
   /** Skriver de hamtade vardena som CSS-variabler pa vardelementet. */
@@ -341,7 +421,7 @@ import bannerCss from './style.css';
   }
 
   // Tomt svar. Bannern kor sina standardvarden och sina fyra kategorier.
-  const TOM_CONFIG = { design: {}, categories: [] };
+  const TOM_CONFIG = { design: {}, categories: [], texts: {} };
 
   async function fetchConfig() {
     // Utan site key finns inget att sla upp.
@@ -378,7 +458,11 @@ import bannerCss from './style.css';
       // Saknas faltet helt - ett API som annu inte skickar det - blir listan
       // tom, och bannern faller tillbaka pa sina fyra. Det ar det som gor att
       // bannern kan rullas ut fore API:t utan att nagot andras.
-      return { design: rensad, categories: sanitizeCategories(data.categories) };
+      return {
+        design: rensad,
+        categories: sanitizeCategories(data.categories),
+        texts: sanitizeTexts(data.texts),
+      };
     } catch (fel) {
       // Avbrott, natverksfel eller trasigt svar: bannern ska visa sig anda.
       // En banner som uteblir for att configen inte gick att hamta vore ett
@@ -398,6 +482,7 @@ import bannerCss from './style.css';
       configPromise = fetchConfig().then((config) => {
         loadedDesign = config.design;
         loadedCategories = config.categories;
+        loadedTexts = config.texts;
         applyDesign();
         applyCategories();
         return config;
@@ -421,7 +506,9 @@ import bannerCss from './style.css';
   function applyCategories() {
     const behallare = el('settings-container');
     if (!behallare) return;
-    behallare.innerHTML = renderCategoryCards();
+    // textContent = '' tar bort barnen utan att nagon HTML tolkas.
+    behallare.textContent = '';
+    renderCategoryCards(behallare);
   }
 
   // HAMTAS BARA NAR DEN BEHOVS.
@@ -457,6 +544,10 @@ import bannerCss from './style.css';
     .split('-')[0]
     .toLowerCase();
   const t = translations[pageLang] || translations['en'];
+  // Vilket språk som faktiskt ritas. Databastexterna slås upp på samma nyckel,
+  // annars hade en sajt med <html lang="de"> fått engelska etiketter men
+  // svenska databastexter — halva rutan på fel språk.
+  const textLang = translations[pageLang] ? pageLang : 'en';
 
   //========================================================================
   // HTML INJECTION for easy plug in
@@ -467,66 +558,129 @@ import bannerCss from './style.css';
   // skarmlasare, och da kan besokaren inte gora ett specifikt val per kategori.
   // Kortet i sin helhet ar fortfarande klickbart: klicket bubblar upp fran
   // knappen till kortets data-handling, sa bada vagarna ger exakt ett omslag.
-  // Texterna slas upp pa nyckel. Databasen skickar bara nycklar - aldrig text.
-  // En nyckel som saknas har gar inte att rita, och ritas darfor inte.
+  // Texterna slas upp pa nyckel. En nyckel som saknas har gar inte att rita,
+  // och ritas darfor inte.
   // `text` visas nar kategorin ANVANDS, `saknas` nar den inte gor det.
+  //
+  // Databasen far skriva över varje enskild rad, men bara skriva över: saknas
+  // värdet används språktabellens. Det är därför en sajt kan byta ordalydelse
+  // på en enda rubrik utan att behöva fylla i allt annat.
   function kategoriTexter() {
+    const egna = (loadedTexts && loadedTexts[textLang]) || {};
+
+    // falt ar databasens namn (label/description/notice), standard ar
+    // spraktabellens varde.
+    const valj = (nyckel, falt, standard) => {
+      const rad = egna[nyckel];
+      return rad && typeof rad[falt] === 'string' ? rad[falt] : standard;
+    };
+
     return {
-      necessary: { etikett: t.necessaryLabel, text: t.necessaryDesc },
-      analytics: { etikett: t.analyticsLabel, text: t.analyticsDesc, saknas: t.analyticsNone },
-      functional: { etikett: t.functionalLabel, text: t.functionalDesc, saknas: t.functionalNone },
-      marketing: { etikett: t.marketingLabel, text: t.marketingDesc, saknas: t.marketingNone },
+      necessary: {
+        etikett: valj('necessary', 'label', t.necessaryLabel),
+        text: valj('necessary', 'description', t.necessaryDesc),
+      },
+      analytics: {
+        etikett: valj('analytics', 'label', t.analyticsLabel),
+        text: valj('analytics', 'description', t.analyticsDesc),
+        saknas: valj('analytics', 'notice', t.analyticsNone),
+      },
+      functional: {
+        etikett: valj('functional', 'label', t.functionalLabel),
+        text: valj('functional', 'description', t.functionalDesc),
+        saknas: valj('functional', 'notice', t.functionalNone),
+      },
+      marketing: {
+        etikett: valj('marketing', 'label', t.marketingLabel),
+        text: valj('marketing', 'description', t.marketingDesc),
+        saknas: valj('marketing', 'notice', t.marketingNone),
+      },
     };
   }
 
-  function renderCategoryCards() {
+  /**
+   * Ritar korten som RIKTIGA ELEMENT i behallaren.
+   *
+   * ⚠️ INGEN HTML-STRANG, och det ar med flit. Fore C1 steg 3 byggdes korten
+   * genom att klistra ihop en strang som sattes med innerHTML. Det gick bra sa
+   * lange alla texter kom fran bannerns egen sprakabell — men texterna kommer
+   * numera fran databasen, och da hade en text med <img onerror=...> blivit
+   * kod i stallet for bokstaver.
+   *
+   * Med textContent finns det halet inte. Det ar inte skyddat mot, det finns
+   * inte. SKRIV DARFOR ALDRIG OM DEN HAR FUNKTIONEN TILL innerHTML.
+   */
+  function renderCategoryCards(behallare) {
     const texter = kategoriTexter();
 
-    return activeCategories()
-      .map((kategori) => {
-        const text = texter[kategori.key];
-        if (!text) return '';
+    for (const kategori of activeCategories()) {
+      const text = texter[kategori.key];
+      if (!text) continue;
+      if (kategori.visibility === 'notice' && !text.saknas) continue;
 
-        // BESKED: kort utan reglage. Ingen data-handling, sa klick pa kortet
-        // gor ingenting - det finns inget att vaxla. Ingen knapp betyder ocksa
-        // att tangentbordsnavigeringen hoppar over det, vilket ar ratt: det ar
-        // information, inte ett val.
-        if (kategori.visibility === 'notice') {
-          if (!text.saknas) return '';
-          return `
-          <div class="cookie-category-card category-notice">
-            <div class="category-text-wrapper">
-              <h5 id="etikett-${kategori.key}">${text.etikett}</h5>
-              <p id="text-${kategori.key}">${text.saknas}</p>
-            </div>
-          </div>`;
-        }
+      const besked = kategori.visibility === 'notice';
 
+      const kort = document.createElement('div');
+      kort.className = besked ? 'cookie-category-card category-notice' : 'cookie-category-card';
+
+      const omslag = document.createElement('div');
+      omslag.className = 'category-text-wrapper';
+
+      const rubrik = document.createElement('h5');
+      rubrik.id = `etikett-${kategori.key}`;
+      rubrik.textContent = text.etikett;
+
+      const brodtext = document.createElement('p');
+      brodtext.id = `text-${kategori.key}`;
+      brodtext.textContent = besked ? text.saknas : text.text;
+
+      omslag.append(rubrik, brodtext);
+      kort.appendChild(omslag);
+
+      // BESKED: kort utan reglage. Ingen data-handling, sa klick pa kortet
+      // gor ingenting - det finns inget att vaxla. Ingen knapp betyder ocksa
+      // att tangentbordsnavigeringen hoppar over det, vilket ar ratt: det ar
+      // information, inte ett val.
+      if (besked) {
+        behallare.appendChild(kort);
+        continue;
+      }
+
+      const knapp = document.createElement('button');
+      knapp.type = 'button';
+      knapp.setAttribute('role', 'switch');
+      knapp.setAttribute('aria-labelledby', rubrik.id);
+      knapp.setAttribute('aria-describedby', brodtext.id);
+
+      if (kategori.is_required) {
+        // Markets text kommer alltid fran spraktabellen, aldrig fran
+        // databasen: "KRAVS" ar ett pastaende om hur bannern fungerar, inte
+        // om sajten.
+        const marke = document.createElement('span');
+        marke.className = 'badge';
+        marke.textContent = t.requiredBadge;
+        rubrik.append(' ', marke);
+
+        knapp.className = 'toggle-switch always-active';
+        knapp.setAttribute('aria-checked', 'true');
+        knapp.disabled = true;
+      } else {
         const reglage = `${kategori.key}-toggle`;
-        const etikett = kategori.is_required
-          ? `${text.etikett} <span class="badge">${t.requiredBadge}</span>`
-          : text.etikett;
+        kort.dataset.handling = 'vaxla';
+        kort.dataset.reglage = reglage;
 
-        const kortAttribut = kategori.is_required
-          ? ''
-          : ` data-handling="vaxla" data-reglage="${reglage}"`;
-        const knappAttribut = kategori.is_required
-          ? 'class="toggle-switch always-active" aria-checked="true" disabled'
-          : `class="toggle-switch" id="${reglage}" aria-checked="false"`;
+        knapp.className = 'toggle-switch';
+        knapp.id = reglage;
+        knapp.setAttribute('aria-checked', 'false');
+      }
 
-        return `
-          <div class="cookie-category-card"${kortAttribut}>
-            <div class="category-text-wrapper">
-              <h5 id="etikett-${kategori.key}">${etikett}</h5>
-              <p id="text-${kategori.key}">${text.text}</p>
-            </div>
-            <button type="button" role="switch" ${knappAttribut}
-              aria-labelledby="etikett-${kategori.key}" aria-describedby="text-${kategori.key}">
-              <span class="toggle-slider"></span>
-            </button>
-          </div>`;
-      })
-      .join('');
+      const slider = document.createElement('span');
+      slider.className = 'toggle-slider';
+      knapp.appendChild(slider);
+
+      kort.appendChild(knapp);
+      behallare.appendChild(kort);
+    }
   }
 
   function injectBannerHTML() {
@@ -590,9 +744,7 @@ import bannerCss from './style.css';
         <div class="cookie-body">
           <p>${t.settingsBody}</p>
         </div>
-        <div id="settings-container" class="cookie-settings-container">
-          ${renderCategoryCards()}
-        </div>
+        <div id="settings-container" class="cookie-settings-container"></div>
       </div>
       <div class="scroll-shadow" id="bottom-shadow"></div>
       <div class="cookie-buttons">
@@ -638,6 +790,12 @@ import bannerCss from './style.css';
     const mall = document.createElement('template');
     mall.innerHTML = bannerHTML;
     shadow.appendChild(mall.content);
+
+    // Korten ritas har i stallet for i mallen: de byggs som element, inte som
+    // en strang, sa de gar inte att interpolera in. Configen har oftast redan
+    // kommit — har den inte det ritas bannerns standardkategorier, och
+    // applyCategories() ritar om sa fort svaret ar framme.
+    applyCategories();
 
     bindEvents();
     bindKeyboard();

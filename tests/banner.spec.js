@@ -1483,3 +1483,178 @@ test.describe('Rullning i policyrutan', () => {
     expect(stil.farg).not.toBe('auto');
   });
 });
+
+test.describe('Texter fran databasen (C1 steg 3)', () => {
+  const NYCKEL = 'pk_test_00000000000000000000000000000000';
+
+  const FYRA = [
+    { key: 'necessary', is_required: true, visibility: 'toggle' },
+    { key: 'analytics', is_required: false, visibility: 'toggle' },
+    { key: 'functional', is_required: false, visibility: 'toggle' },
+    { key: 'marketing', is_required: false, visibility: 'toggle' },
+  ];
+
+  /** Later API:t svara med en uppsattning texter. */
+  async function medTexter(page, texts, categories = FYRA) {
+    await page.addInitScript((k) => {
+      window.SEOS_SITE_KEY = k;
+    }, NYCKEL);
+
+    await page.route('**/config/**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(texts === undefined
+          ? { design: {}, categories }
+          : { design: {}, categories, texts }),
+      })
+    );
+  }
+
+  const oppnaInstallningar = async (page) => {
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    await page.locator('#cookie-banner .btn-customize').click();
+    await expect(page.locator('#cookie-settings')).toBeVisible();
+  };
+
+  test('en text fran databasen skriver over bannerns egen', async ({ page }) => {
+    await medSkugga(page);
+    await medTexter(page, {
+      sv: { marketing: { label: 'Annonser', description: 'Vi visar riktade annonser.' } },
+    });
+    await oppnaInstallningar(page);
+
+    await expect(page.locator('#etikett-marketing')).toHaveText('Annonser');
+    await expect(page.locator('#text-marketing')).toHaveText('Vi visar riktade annonser.');
+  });
+
+  test('ett falt som saknas hamtas ur bannerns egen sprakabell', async ({ page }) => {
+    await medSkugga(page);
+    // Bara rubriken satt. Beskrivningen ska vara bannerns egen.
+    await medTexter(page, { sv: { marketing: { label: 'Annonser' } } });
+    await oppnaInstallningar(page);
+
+    await expect(page.locator('#etikett-marketing')).toHaveText('Annonser');
+    await expect(page.locator('#text-marketing')).toHaveText(
+      'Används för att visa relevanta annonser och spåra besökare.'
+    );
+  });
+
+  test('utan texter i svaret ritas bannerns egna', async ({ page }) => {
+    await medSkugga(page);
+    await medTexter(page, undefined);
+    await oppnaInstallningar(page);
+
+    await expect(page.locator('#etikett-marketing')).toHaveText('Marknadsföring');
+  });
+
+  //=======================================================================
+  // XSS-YTAN. Det har ar hela skalet till att korten byggs med
+  // createElement i stallet for innerHTML.
+  //=======================================================================
+
+  // LAGER 1: filtret. Text med vinkelparenteser slangs redan innan den nar
+  // renderingen, sa bannerns egen text ritas i stallet.
+  test('filtret slanger text med vinkelparenteser', async ({ page }) => {
+    const larm = [];
+    page.on('dialog', (d) => {
+      larm.push(d.message());
+      d.dismiss();
+    });
+
+    await medSkugga(page);
+    await medTexter(page, {
+      sv: {
+        marketing: { description: '<img src=x onerror="alert(1)">' },
+        analytics: { label: '<script>window.SEOS_XSS = true</script>Analys' },
+      },
+    });
+    await oppnaInstallningar(page);
+
+    // Bannerns egna texter, alltsa slangdes databasens.
+    await expect(page.locator('#text-marketing')).toHaveText(
+      'Används för att visa relevanta annonser och spåra besökare.'
+    );
+    await expect(page.locator('#etikett-analytics')).toHaveText('Analys och prestanda');
+
+    // Ingenting skapades och ingenting kordes.
+    expect(await page.locator('#settings-container img').count()).toBe(0);
+    expect(await page.evaluate(() => window.SEOS_XSS)).toBeUndefined();
+    expect(larm).toEqual([]);
+  });
+
+  // LAGER 2: renderingen. Det har ar testet som skiljer textContent fran
+  // innerHTML, och darfor det som skulle bli rott om nagon skrev om
+  // renderCategoryCards till en HTML-strang.
+  //
+  // Tecknen &lt; och &gt; passerar filtret - det finns inga vinkelparenteser i
+  // dem. Satts de med innerHTML avkodas de till < och >, och elementet skulle
+  // sta som "<b>Annonser</b>". Med textContent star entiteterna kvar precis
+  // som de skrevs. Det ar skillnaden testet mater.
+  test('texten skrivs som text, inte som HTML', async ({ page }) => {
+    await medSkugga(page);
+    await medTexter(page, {
+      sv: { marketing: { label: '&lt;b&gt;Annonser&lt;/b&gt;' } },
+    });
+    await oppnaInstallningar(page);
+
+    await expect(page.locator('#etikett-marketing')).toHaveText('&lt;b&gt;Annonser&lt;/b&gt;');
+    expect(await page.locator('#etikett-marketing b').count()).toBe(0);
+  });
+
+  test('beskedstexten gar ocksa att styra fran databasen', async ({ page }) => {
+    await medSkugga(page);
+    await medTexter(
+      page,
+      { sv: { marketing: { notice: 'Brevens hus annonserar inte.' } } },
+      [
+        { key: 'necessary', is_required: true, visibility: 'toggle' },
+        { key: 'analytics', is_required: false, visibility: 'toggle' },
+        { key: 'marketing', is_required: false, visibility: 'notice' },
+      ]
+    );
+    await oppnaInstallningar(page);
+
+    await expect(page.locator('#text-marketing')).toHaveText('Brevens hus annonserar inte.');
+    // Fortfarande ett besked: inget reglage, inget att klicka pa.
+    const kort = page.locator('#settings-container .cookie-category-card.category-notice');
+    await expect(kort).toHaveCount(1);
+    expect(await kort.locator('button[role="switch"]').count()).toBe(0);
+  });
+
+  test('nodvandiga kan inte fa ett besked via texterna', async ({ page }) => {
+    await medSkugga(page);
+    await medTexter(page, {
+      sv: { necessary: { notice: 'Vi anvander inga nodvandiga cookies.' } },
+    });
+    await oppnaInstallningar(page);
+
+    // Kortet ska vara oforandrat: bannerns egen text och ett last reglage.
+    await expect(page.locator('#text-necessary')).toHaveText(
+      'Nödvändiga för att webbplatsen ska fungera korrekt.'
+    );
+    await expect(page.locator('#etikett-necessary')).toContainText('Strikt nödvändiga');
+  });
+
+  test('okant sprak och okant falt slangs', async ({ page }) => {
+    await medSkugga(page);
+    await medTexter(page, {
+      de: { marketing: { label: 'Werbung' } },
+      sv: { marketing: { rubrik: 'Fel faltnamn' } },
+    });
+    await oppnaInstallningar(page);
+
+    await expect(page.locator('#etikett-marketing')).toHaveText('Marknadsföring');
+  });
+
+  test('KRAVS-market kommer fran bannern, aldrig fran databasen', async ({ page }) => {
+    await medSkugga(page);
+    await medTexter(page, { sv: { necessary: { label: 'Grundlaggande' } } });
+    await oppnaInstallningar(page);
+
+    const marke = page.locator('#etikett-necessary .badge');
+    await expect(marke).toHaveText('KRÄVS');
+    await expect(page.locator('#etikett-necessary')).toHaveText('Grundlaggande KRÄVS');
+  });
+});
