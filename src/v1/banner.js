@@ -736,6 +736,12 @@
   --space-md: clamp(0.75rem, 0.68rem + 0.3vw, 1rem);
   --space-lg: clamp(1rem, 0.9rem + 0.45vw, 1.375rem);
   --space-xl: clamp(1.5rem, 1.35rem + 0.6vw, 2rem);
+
+  /* Reglagets bredd. Egen variabel for att beskedskortet ska kunna reservera
+     exakt lika mycket plats - annars linjerar inte raderna nar en kategori
+     visas som besked i stallet for som reglage. Geometri, alltsa densamma pa
+     alla sajter och inte stallbar fran databasen. */
+  --toggle-width: 44px;
 }
 
 .light-theme {
@@ -1006,6 +1012,14 @@ button:hover {
   padding: var(--space-md) 0;
   border-bottom: 1px solid var(--bg-muted);
 }
+/* BESKEDSKORT (C1 steg 2, beskedslaget).
+   Kategorin finns men sajten anvander den inte, sa kortet har ingen knapp.
+   Utan reserverad plats for reglaget skulle texten bli bredare an de andra
+   korten och raderna sluta linjera. Marginalen halls darfor kvar. */
+.cookie-category-card.category-notice {
+  padding-right: calc(var(--space-lg) + var(--toggle-width));
+  cursor: default;
+}
 .category-text-wrapper h5 {
   margin: 0;
   font-size: var(--body-text-size);
@@ -1024,9 +1038,9 @@ button:hover {
 /* Reglaget ar en <button role="switch"> sedan C8. Den arver darfor knapp-
    reglerna ovan (padding, inline-flex, ram) och maste nollstalla dem. */
 .toggle-switch {
-  width: 44px;
+  width: var(--toggle-width);
   height: 24px;
-  min-width: 44px;
+  min-width: var(--toggle-width);
   padding: 0;
   border: none;
   display: block;
@@ -1319,6 +1333,11 @@ button:hover {
         functionalDesc: "Remembers your personal preferences.",
         marketingLabel: "Marketing",
         marketingDesc: "Used to deliver relevant ads and track visitors.",
+        // Beskedslaget: visas i stallet for ett reglage nar sajten inte
+        // anvander kategorin. En utsaga, inte en fraga.
+        analyticsNone: "This website does not use any analytics cookies.",
+        functionalNone: "This website does not use any functional cookies.",
+        marketingNone: "This website does not use any marketing cookies.",
         returnBtn: "Return",
         savePreferences: "Save preferences",
         policyTitle: "Cookie Policy",
@@ -1347,6 +1366,9 @@ button:hover {
         functionalDesc: "Kommer ihåg dina personliga inställningar.",
         marketingLabel: "Marknadsföring",
         marketingDesc: "Används för att visa relevanta annonser och spåra besökare.",
+        analyticsNone: "Den här webbplatsen använder inga analyscookies.",
+        functionalNone: "Den här webbplatsen använder inga funktionella cookies.",
+        marketingNone: "Den här webbplatsen använder inga marknadsföringscookies.",
         returnBtn: "Tillbaka",
         savePreferences: "Spara inställningar",
         policyTitle: "Cookiepolicy",
@@ -1394,7 +1416,8 @@ button:hover {
     const CATEGORY_KEYS = ["necessary", "analytics", "functional", "marketing"];
     const DEFAULT_CATEGORIES = CATEGORY_KEYS.map((key) => ({
       key,
-      is_required: key === "necessary"
+      is_required: key === "necessary",
+      visibility: "toggle"
     }));
     function sanitizeCategories(lista) {
       if (!Array.isArray(lista)) return [];
@@ -1403,13 +1426,20 @@ button:hover {
         if (!rad || typeof rad !== "object") continue;
         if (typeof rad.key !== "string") continue;
         if (CATEGORY_KEYS.indexOf(rad.key) === -1) continue;
-        funna.set(rad.key, rad.is_required === true);
+        funna.set(rad.key, {
+          is_required: rad.is_required === true,
+          // Bara ett uttryckligt 'notice' ger besked. Allt annat - okant varde,
+          // saknat falt, ett API som annu inte skickar det - blir reglage.
+          // Det sakra fallet ar att FRAGA, inte att pasta nagot om sajten.
+          visibility: rad.visibility === "notice" ? "notice" : "toggle"
+        });
       }
       if (!funna.size) return [];
-      funna.set("necessary", true);
+      funna.set("necessary", { is_required: true, visibility: "toggle" });
       return CATEGORY_KEYS.filter((key) => funna.has(key)).map((key) => ({
         key,
-        is_required: funna.get(key) === true
+        is_required: funna.get(key).is_required,
+        visibility: funna.get(key).visibility
       }));
     }
     const CONFIG_TIMEOUT_MS = 800;
@@ -1417,6 +1447,9 @@ button:hover {
     let loadedCategories = null;
     function activeCategories() {
       return loadedCategories && loadedCategories.length ? loadedCategories : DEFAULT_CATEGORIES;
+    }
+    function toggleCategories() {
+      return activeCategories().filter((kategori) => kategori.visibility !== "notice");
     }
     function applyDesign() {
       if (!loadedDesign) return;
@@ -1490,9 +1523,9 @@ button:hover {
     function kategoriTexter() {
       return {
         necessary: { etikett: t.necessaryLabel, text: t.necessaryDesc },
-        analytics: { etikett: t.analyticsLabel, text: t.analyticsDesc },
-        functional: { etikett: t.functionalLabel, text: t.functionalDesc },
-        marketing: { etikett: t.marketingLabel, text: t.marketingDesc }
+        analytics: { etikett: t.analyticsLabel, text: t.analyticsDesc, saknas: t.analyticsNone },
+        functional: { etikett: t.functionalLabel, text: t.functionalDesc, saknas: t.functionalNone },
+        marketing: { etikett: t.marketingLabel, text: t.marketingDesc, saknas: t.marketingNone }
       };
     }
     function renderCategoryCards() {
@@ -1500,6 +1533,16 @@ button:hover {
       return activeCategories().map((kategori) => {
         const text = texter[kategori.key];
         if (!text) return "";
+        if (kategori.visibility === "notice") {
+          if (!text.saknas) return "";
+          return `
+          <div class="cookie-category-card category-notice">
+            <div class="category-text-wrapper">
+              <h5 id="etikett-${kategori.key}">${text.etikett}</h5>
+              <p id="text-${kategori.key}">${text.saknas}</p>
+            </div>
+          </div>`;
+        }
         const reglage = `${kategori.key}-toggle`;
         const etikett = kategori.is_required ? `${text.etikett} <span class="badge">${t.requiredBadge}</span>` : text.etikett;
         const kortAttribut = kategori.is_required ? "" : ` data-handling="vaxla" data-reglage="${reglage}"`;
@@ -1763,7 +1806,7 @@ button:hover {
     function acceptAllConsent() {
       const clientId = getOrCreateClientId();
       const visade = {};
-      for (const kategori of activeCategories()) visade[kategori.key] = true;
+      for (const kategori of toggleCategories()) visade[kategori.key] = true;
       return {
         necessary: true,
         analytics: visade.analytics === true,
@@ -1984,7 +2027,7 @@ button:hover {
           element.setAttribute("aria-checked", isActive ? "true" : "false");
         }
       };
-      for (const kategori of activeCategories()) {
+      for (const kategori of toggleCategories()) {
         if (kategori.is_required) continue;
         applyToggleState(`${kategori.key}-toggle`, choices[kategori.key] === true);
       }
@@ -2012,7 +2055,7 @@ button:hover {
     function saveSettings() {
       const clientId = getOrCreateClientId();
       const val = { analytics: false, marketing: false, functional: false };
-      for (const kategori of activeCategories()) {
+      for (const kategori of toggleCategories()) {
         if (kategori.is_required) continue;
         val[kategori.key] = el(`${kategori.key}-toggle`)?.classList.contains("active") || false;
       }

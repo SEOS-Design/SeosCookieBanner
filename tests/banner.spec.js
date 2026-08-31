@@ -1165,6 +1165,195 @@ test.describe('Kategorier fran databasen (C1 steg 2)', () => {
   });
 });
 
+test.describe('Beskedslaget - kategorin forklaras i stallet for att doljas', () => {
+  const NYCKEL = 'pk_test_00000000000000000000000000000000';
+
+  async function medKategorier(page, categories) {
+    await page.addInitScript((k) => {
+      window.SEOS_SITE_KEY = k;
+    }, NYCKEL);
+    await page.route('**/config/**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ design: {}, categories }),
+      })
+    );
+  }
+
+  /** Alla fyra, dar de uppraknade nycklarna star som besked. */
+  const medBesked = (...beskedsnycklar) =>
+    ['necessary', 'analytics', 'functional', 'marketing'].map((key) => ({
+      key,
+      is_required: key === 'necessary',
+      visibility: beskedsnycklar.includes(key) ? 'notice' : 'toggle',
+    }));
+
+  const kort = (page) => page.locator('#settings-container .cookie-category-card');
+
+  const oppnaInstallningar = async (page) => {
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    await page.locator('#cookie-banner .btn-customize').click();
+    await expect(page.locator('#cookie-settings')).toBeVisible();
+  };
+
+  async function fangaConsent(page) {
+    const skickat = [];
+    await page.route('**/consent', (route) => {
+      skickat.push(JSON.parse(route.request().postData() || '{}'));
+      return route.fulfill({ status: 201, contentType: 'application/json', body: '{}' });
+    });
+    return skickat;
+  }
+
+  test('kategorin visas fortfarande, men med besked i stallet for reglage', async ({ page }) => {
+    await medSkugga(page);
+    await medKategorier(page, medBesked('marketing'));
+
+    await oppnaInstallningar(page);
+
+    // Fyra kort - kategorinamnet forsvinner aldrig. Det ar hela poangen.
+    await expect(kort(page)).toHaveCount(4);
+    await expect(page.locator('#etikett-marketing')).toBeVisible();
+    // Men inget reglage.
+    await expect(page.locator('#marketing-toggle')).toHaveCount(0);
+    await expect(page.locator('#text-marketing')).toHaveText(
+      'Den här webbplatsen använder inga marknadsföringscookies.'
+    );
+  });
+
+  test('beskedskortet gar inte att klicka pa och har ingen knapp', async ({ page }) => {
+    await medSkugga(page);
+    await medKategorier(page, medBesked('marketing'));
+
+    await oppnaInstallningar(page);
+
+    const beskedskort = page.locator('#settings-container .category-notice');
+    await expect(beskedskort).toHaveCount(1);
+    await expect(beskedskort.locator('button')).toHaveCount(0);
+    // Utan data-handling gor ett klick ingenting alls.
+    expect(await beskedskort.getAttribute('data-handling')).toBeNull();
+  });
+
+  test('flera kategorier kan sta som besked samtidigt', async ({ page }) => {
+    // Seosdesign-fallet: bara analys anvands.
+    await medSkugga(page);
+    await medKategorier(page, medBesked('functional', 'marketing'));
+
+    await oppnaInstallningar(page);
+
+    await expect(kort(page)).toHaveCount(4);
+    await expect(page.locator('#settings-container .category-notice')).toHaveCount(2);
+    await expect(page.locator('#analytics-toggle')).toBeVisible();
+  });
+
+  test('ett besked ger INTE samtycke vid "acceptera alla"', async ({ page }) => {
+    // Den viktigaste kontrollen i hela beskedslaget. Kategorin ligger nu KVAR
+    // i listan, till skillnad fran nar den doldes - sa en genvag som raknar
+    // "finns i listan" som "anvands" hade loggat ett samtycke som aldrig gavs.
+    await medSkugga(page);
+    await medKategorier(page, medBesked('marketing'));
+    const skickat = await fangaConsent(page);
+
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    await page.locator('#cookie-banner .btn-save').click();
+    await page.waitForFunction(() => document.cookie.includes('consent_status'));
+
+    expect(skickat[0].status).toBe('all');
+    expect(skickat[0].analytics).toBe(true);
+    expect(skickat[0].functional).toBe(true);
+    // Stod som besked - besokaren blev aldrig tillfragad.
+    expect(skickat[0].marketing).toBe(false);
+  });
+
+  test('ett besked ger INTE samtycke nar installningar sparas', async ({ page }) => {
+    await medSkugga(page);
+    await medKategorier(page, medBesked('marketing'));
+    const skickat = await fangaConsent(page);
+
+    await oppnaInstallningar(page);
+    await page.locator('#analytics-toggle').click();
+    await page.locator('#cookie-settings .btn-save').click();
+    await page.waitForFunction(() => document.cookie.includes('consent_status'));
+
+    expect(skickat[0].status).toBe('custom');
+    expect(skickat[0].analytics).toBe(true);
+    expect(skickat[0].marketing).toBe(false);
+  });
+
+  test('nodvandiga kan aldrig bli ett besked', async ({ page }) => {
+    // Bannern satter sin egen samtyckescookie, sa ett besked om motsatsen
+    // vore osant pa varje sajt.
+    await medSkugga(page);
+    await medKategorier(page, medBesked('necessary'));
+
+    await oppnaInstallningar(page);
+
+    await expect(page.locator('#settings-container .category-notice')).toHaveCount(0);
+    const forstaKort = kort(page).first();
+    await expect(forstaKort.locator('.badge')).toBeVisible();
+    await expect(forstaKort.locator('button')).toBeDisabled();
+  });
+
+  test('saknat eller okant varde ger reglage - det sakra fallet ar att fraga', async ({ page }) => {
+    await medSkugga(page);
+    await medKategorier(page, [
+      { key: 'necessary', is_required: true },
+      { key: 'analytics', is_required: false },
+      { key: 'functional', is_required: false, visibility: 'nagot-annat' },
+      { key: 'marketing', is_required: false, visibility: 'toggle' },
+    ]);
+
+    await oppnaInstallningar(page);
+
+    await expect(page.locator('#settings-container .category-notice')).toHaveCount(0);
+    await expect(page.locator('#analytics-toggle')).toBeVisible();
+    await expect(page.locator('#functional-toggle')).toBeVisible();
+    await expect(page.locator('#marketing-toggle')).toBeVisible();
+  });
+
+  test('beskedskortet klarar tillganglighetsgranskningen', async ({ page }) => {
+    // Nytt UI-element, sa det granskas som resten. Kortet ar ren text utan
+    // interaktiva delar, men kontrasten arvs fran --text-muted och den kan en
+    // sajt satta sjalv - darfor ar det vart att mata i stallet for att anta.
+    const { default: AxeBuilder } = await import('@axe-core/playwright');
+    await medSkugga(page);
+    await medKategorier(page, medBesked('functional', 'marketing'));
+
+    await oppnaInstallningar(page);
+
+    const resultat = await new AxeBuilder({ page })
+      .include('#cookie-sectionId')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+
+    const brister = [...resultat.violations, ...resultat.incomplete];
+    const fel = brister.flatMap((v) =>
+      v.nodes.map(
+        (n) =>
+          `${v.id}: ${String(n.target)} - ${(n.failureSummary || '').replace(/\s+/g, ' ').slice(0, 120)}`
+      )
+    );
+    expect(fel, fel.join('\n')).toEqual([]);
+  });
+
+  test('beskedet foljer sidans sprak', async ({ page }) => {
+    await medSkugga(page);
+    await medKategorier(page, medBesked('analytics'));
+    await page.addInitScript(() => {
+      window.SEOS_COOKIE_LANG = 'en';
+    });
+
+    await oppnaInstallningar(page);
+
+    await expect(page.locator('#text-analytics')).toHaveText(
+      'This website does not use any analytics cookies.'
+    );
+  });
+});
+
 test.describe('Rullning i policyrutan', () => {
   /**
    * Harmar ett bibliotek for mjuk rullning (Lenis, Locomotive, GSAP

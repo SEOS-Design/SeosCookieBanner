@@ -86,6 +86,11 @@ import bannerCss from './style.css';
       functionalDesc: 'Remembers your personal preferences.',
       marketingLabel: 'Marketing',
       marketingDesc: 'Used to deliver relevant ads and track visitors.',
+      // Beskedslaget: visas i stallet for ett reglage nar sajten inte
+      // anvander kategorin. En utsaga, inte en fraga.
+      analyticsNone: 'This website does not use any analytics cookies.',
+      functionalNone: 'This website does not use any functional cookies.',
+      marketingNone: 'This website does not use any marketing cookies.',
       returnBtn: 'Return',
       savePreferences: 'Save preferences',
       policyTitle: 'Cookie Policy',
@@ -115,6 +120,9 @@ import bannerCss from './style.css';
       functionalDesc: 'Kommer ihåg dina personliga inställningar.',
       marketingLabel: 'Marknadsföring',
       marketingDesc: 'Används för att visa relevanta annonser och spåra besökare.',
+      analyticsNone: 'Den här webbplatsen använder inga analyscookies.',
+      functionalNone: 'Den här webbplatsen använder inga funktionella cookies.',
+      marketingNone: 'Den här webbplatsen använder inga marknadsföringscookies.',
       returnBtn: 'Tillbaka',
       savePreferences: 'Spara inställningar',
       policyTitle: 'Cookiepolicy',
@@ -201,7 +209,17 @@ import bannerCss from './style.css';
   //========================================================================
   //
   // Vilka kategorikort som visas i installningsrutan kommer fran databasen.
-  // En sajt utan funktionella cookies ska inte visa ett reglage for dem.
+  //
+  // TVA LAGEN PER KATEGORI, och kortet ritas i BADA:
+  //
+  //   toggle   sajten anvander kategorin  -> kort med reglage
+  //   notice   sajten anvander den inte   -> kort med besked:
+  //            "Den har webbplatsen anvander inga marknadsforingscookies"
+  //
+  // Kategorinamnet forsvinner alltsa aldrig. Beslutet (Bjorn, 2026-08-31) ar
+  // att en avstangd knapp som inte styr nagot gor rutan mindre trovardig,
+  // medan ett besked ar en UTSAGA i stallet for en fraga - det bygger
+  // fortroende i stallet for att bara ta bort brus.
   //
   // ETIKETTERNA ligger kvar har, i bannerns egen sprakabell - databasen
   // skickar bara nycklar. Det ar med flit: text fran en databas som skrivs ut
@@ -225,6 +243,7 @@ import bannerCss from './style.css';
   const DEFAULT_CATEGORIES = CATEGORY_KEYS.map((key) => ({
     key,
     is_required: key === 'necessary',
+    visibility: 'toggle',
   }));
 
   /** Slapper bara igenom kanda kategorier, i bannerns egen ordning. */
@@ -236,19 +255,27 @@ import bannerCss from './style.css';
       if (!rad || typeof rad !== 'object') continue;
       if (typeof rad.key !== 'string') continue;
       if (CATEGORY_KEYS.indexOf(rad.key) === -1) continue;
-      funna.set(rad.key, rad.is_required === true);
+      funna.set(rad.key, {
+        is_required: rad.is_required === true,
+        // Bara ett uttryckligt 'notice' ger besked. Allt annat - okant varde,
+        // saknat falt, ett API som annu inte skickar det - blir reglage.
+        // Det sakra fallet ar att FRAGA, inte att pasta nagot om sajten.
+        visibility: rad.visibility === 'notice' ? 'notice' : 'toggle',
+      });
     }
 
     if (!funna.size) return [];
 
-    // NODVANDIGA AR ALLTID MED, OCH ALLTID OBLIGATORISKA. Samma invariant som
-    // i API:t, och av samma skal: payloaden skickar alltid necessary: true, sa
-    // ett reglage som gick att stanga av hade ljugit for besokaren.
-    funna.set('necessary', true);
+    // NODVANDIGA AR ALLTID MED, ALLTID OBLIGATORISKA OCH ALLTID ETT REGLAGE.
+    // Samma invariant som i API:t, och av samma skal: payloaden skickar alltid
+    // necessary: true, sa bade ett avstangbart reglage och ett besked om
+    // motsatsen hade ljugit for besokaren.
+    funna.set('necessary', { is_required: true, visibility: 'toggle' });
 
     return CATEGORY_KEYS.filter((key) => funna.has(key)).map((key) => ({
       key,
-      is_required: funna.get(key) === true,
+      is_required: funna.get(key).is_required,
+      visibility: funna.get(key).visibility,
     }));
   }
 
@@ -260,9 +287,25 @@ import bannerCss from './style.css';
   let loadedDesign = null;
   let loadedCategories = null;
 
-  /** Kategorierna configen gav, eller bannerns fyra om den inte gav nagra. */
+  /** Alla kort som ska ritas - bade reglage och besked. */
   function activeCategories() {
     return loadedCategories && loadedCategories.length ? loadedCategories : DEFAULT_CATEGORIES;
+  }
+
+  /**
+   * Bara kategorierna sajten FAKTISKT ANVANDER, alltsa de med reglage.
+   *
+   * ⚠️ SKILJ DEN HAR FRAN activeCategories(). Fore beskedslaget rackte det att
+   * en kategori fanns i listan for att den skulle rakna som anvand - en dold
+   * kategori var helt enkelt borta. Nu ligger aven beskeden i listan, sa den
+   * genvagen ger fel svar: bevisloggen skulle pasta att besokaren samtyckt
+   * till en kategori som bara stod som en upplysning.
+   *
+   * Allt som ror SAMTYCKE ska ga via den har. Allt som ror RITNING via den
+   * andra.
+   */
+  function toggleCategories() {
+    return activeCategories().filter((kategori) => kategori.visibility !== 'notice');
   }
 
   /** Skriver de hamtade vardena som CSS-variabler pa vardelementet. */
@@ -426,12 +469,13 @@ import bannerCss from './style.css';
   // knappen till kortets data-handling, sa bada vagarna ger exakt ett omslag.
   // Texterna slas upp pa nyckel. Databasen skickar bara nycklar - aldrig text.
   // En nyckel som saknas har gar inte att rita, och ritas darfor inte.
+  // `text` visas nar kategorin ANVANDS, `saknas` nar den inte gor det.
   function kategoriTexter() {
     return {
       necessary: { etikett: t.necessaryLabel, text: t.necessaryDesc },
-      analytics: { etikett: t.analyticsLabel, text: t.analyticsDesc },
-      functional: { etikett: t.functionalLabel, text: t.functionalDesc },
-      marketing: { etikett: t.marketingLabel, text: t.marketingDesc },
+      analytics: { etikett: t.analyticsLabel, text: t.analyticsDesc, saknas: t.analyticsNone },
+      functional: { etikett: t.functionalLabel, text: t.functionalDesc, saknas: t.functionalNone },
+      marketing: { etikett: t.marketingLabel, text: t.marketingDesc, saknas: t.marketingNone },
     };
   }
 
@@ -442,6 +486,21 @@ import bannerCss from './style.css';
       .map((kategori) => {
         const text = texter[kategori.key];
         if (!text) return '';
+
+        // BESKED: kort utan reglage. Ingen data-handling, sa klick pa kortet
+        // gor ingenting - det finns inget att vaxla. Ingen knapp betyder ocksa
+        // att tangentbordsnavigeringen hoppar over det, vilket ar ratt: det ar
+        // information, inte ett val.
+        if (kategori.visibility === 'notice') {
+          if (!text.saknas) return '';
+          return `
+          <div class="cookie-category-card category-notice">
+            <div class="category-text-wrapper">
+              <h5 id="etikett-${kategori.key}">${text.etikett}</h5>
+              <p id="text-${kategori.key}">${text.saknas}</p>
+            </div>
+          </div>`;
+        }
 
         const reglage = `${kategori.key}-toggle`;
         const etikett = kategori.is_required
@@ -835,7 +894,7 @@ import bannerCss from './style.css';
     // vardena foljer vad som visades. Darfor rors varken validatorn,
     // consent.ts eller bevisloggens struktur.
     const visade = {};
-    for (const kategori of activeCategories()) visade[kategori.key] = true;
+    for (const kategori of toggleCategories()) visade[kategori.key] = true;
 
     return {
       necessary: true,
@@ -1158,7 +1217,7 @@ import bannerCss from './style.css';
 
     // Bara de reglage som faktiskt ritats. En dold kategori har inget element,
     // och applyToggleState hittar da ingenting att satta.
-    for (const kategori of activeCategories()) {
+    for (const kategori of toggleCategories()) {
       if (kategori.is_required) continue;
       applyToggleState(`${kategori.key}-toggle`, choices[kategori.key] === true);
     }
@@ -1199,7 +1258,7 @@ import bannerCss from './style.css';
     // stannar pa false - samma regel som i acceptAllConsent: bevisloggen far
     // aldrig pasta att besokaren tog stallning till nagot hen inte fick se.
     const val = { analytics: false, marketing: false, functional: false };
-    for (const kategori of activeCategories()) {
+    for (const kategori of toggleCategories()) {
       if (kategori.is_required) continue;
       val[kategori.key] = el(`${kategori.key}-toggle`)?.classList.contains('active') || false;
     }
