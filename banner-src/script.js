@@ -13,6 +13,7 @@
 // kan inte vara bada. Den frusna kopian i src/css/ ror vi inte forran alla
 // sajter bytt scripttagg.
 import DOMPurify from 'dompurify/dist/purify.min.js';
+import { TRACKERS } from './trackers.js';
 import bannerCss from './style.css';
 
 // Hela bannern korrs i en egen funktion (IIFE) sa att inga variabler hamnar i
@@ -1267,6 +1268,10 @@ import bannerCss from './style.css';
 
     const s = document.createElement('script');
     s.async = true;
+    // ⚠️ MASTE sattas FORE src. Vakten haller tillbaka connect.facebook.net,
+    // och utan den har markeringen hade den blockerat var egen pixelladdning
+    // efter samtycke - alltsa exakt tvartemot vad besokaren just sagt ja till.
+    s.setAttribute('data-seos-own', '1');
     s.src = 'https://connect.facebook.net/en_US/fbevents.js';
     document.head.appendChild(s);
 
@@ -1639,6 +1644,86 @@ import bannerCss from './style.css';
   }
 
   //------------------------------------------------------------------------
+  // VAKTEN (C5 punkt 5) — bannerns halva
+  //------------------------------------------------------------------------
+  //
+  // TVÅ LAGER, OCH VARFÖR:
+  //
+  //   Snutten i kundens <head>  mekanismen + en liten, STABIL lista.
+  //                             Klistras in en gång per sajt.
+  //   Bannern (här)             HELA den aktuella listan.
+  //                             Når alla sajter vid nästa sidladdning.
+  //
+  // Snutten måste bestämma sig i samma ögonblick som ett skript skapas — den
+  // kan inte fråga någon annan och samtidigt hinna först. Därför kan den inte
+  // hämta listan över nätet. Bakade vi in hela listan där skulle varje ändring
+  // kräva en ny inklistring hos varje kund, och den listan skulle ruttna
+  // precis som seed.ts instruktion om ALLOWED_ORIGINS gjorde.
+  //
+  // En färsk halv lista slår en gammal komplett.
+  //
+  // ⚠️ Vakten släpper ALDRIG fram något själv. Den håller tillbaka och lägger
+  // undan. Uteblir bannern förblir det tillbakahållet, vilket är det säkra
+  // felet.
+
+  /** Fyller på vaktens lista med den fullständiga. Tyst utan vakt. */
+  function extendGuardList() {
+    const guard = window.SEOS_GUARD;
+    if (!guard || !Array.isArray(guard.list)) return;
+
+    // Par, samma form som vakten bar: [adressdel, kategori].
+    for (const tracker of TRACKERS) {
+      if (!guard.list.some((known) => known[0] === tracker.match)) {
+        guard.list.push([tracker.match, tracker.category]);
+      }
+    }
+  }
+
+  /**
+   * Släpper fram ett skript vakten lagt undan.
+   *
+   * Ett nytt element byggs, precis som i releaseScript(): att sätta src på det
+   * gamla räcker inte att lita på, och ett nytt element går att placera på
+   * samma ställe så ordningen mellan flera skript hålls.
+   *
+   * ⚠️ setAttribute och inte .src — vaktens setter ligger kvar på elementet,
+   * och den skulle hålla tillbaka adressen en gång till.
+   */
+  function releaseHeldScript(item) {
+    const old = item.el;
+    const script = document.createElement('script');
+
+    for (const attr of old.attributes) {
+      if (attr.name === 'src') continue;
+      script.setAttribute(attr.name, attr.value);
+    }
+    if (old.textContent) script.textContent = old.textContent;
+    script.setAttribute('src', item.url);
+
+    if (old.parentNode) {
+      old.parentNode.insertBefore(script, old);
+      old.remove();
+    } else {
+      // Skapat men aldrig insatt i sidan. Sajtens egen kod har tappat bort
+      // det, men den väntar på att det ska köra - så det ska köra.
+      (document.head || document.documentElement).appendChild(script);
+    }
+  }
+
+  /** Släpper fram det vakten håller, för de kategorier som fått ja. */
+  function releaseHeldScripts() {
+    const guard = window.SEOS_GUARD;
+    if (!guard || !Array.isArray(guard.held) || guard.held.length === 0) return;
+
+    const stillHeld = [];
+    for (const item of guard.held) {
+      if (seosApi.hasConsent(item.category)) releaseHeldScript(item);
+      else stillHeld.push(item);
+    }
+    guard.held = stillHeld;
+  }
+
+  //------------------------------------------------------------------------
   // AKTIVERINGEN
   //------------------------------------------------------------------------
 
@@ -1728,6 +1813,10 @@ import bannerCss from './style.css';
     )) {
       if (isGranted(embedCategory(element))) releaseScript(element);
     }
+
+    // Vaktens undanlagda skript. Ligger har sa att allt som slapps fram gar
+    // genom EN funktion, anropad fran ett stalle.
+    releaseHeldScripts();
 
     for (const element of document.querySelectorAll('iframe[data-seos-consent]')) {
       if (isGranted(embedCategory(element))) {
@@ -2092,6 +2181,11 @@ import bannerCss from './style.css';
   // svaret. Sajten som vill reagera nar svaret kommer anvander
   // onConsentChange(), som ocksa fyrar direkt om svaret redan finns.
   window.SEOS = seosApi;
+
+  // Vakten har bara de fyra stabila namnen. Har far den hela listan, och det
+  // sker sa tidigt som mojligt - varje millisekund innan detta ar en lucka dar
+  // bara snuttens korta lista galler.
+  extendGuardList();
 
   // Stubben skapas direkt nar skriptet korrs - INTE i initializeBanner, som
   // vantar pa DOMContentLoaded. Ju tidigare den finns, desto mindre fonster dar

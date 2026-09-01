@@ -636,6 +636,42 @@
   // banner-src/script.js
   var import_purify_min = __toESM(require_purify_min());
 
+  // banner-src/trackers.js
+  var TRACKERS = [
+    {
+      match: "connect.facebook.net",
+      category: "marketing",
+      early: true
+      // Meta Pixel. Laddas som snutt i <head> och sätter _fbp direkt.
+      //
+      // ⚠️ Bannern laddar SJÄLV den här adressen efter samtycke (loadMetaPixel).
+      // Det skriptet bär data-seos-own och släpps alltid igenom — utan det hade
+      // listan blockerat vår egen pixelladdning.
+    },
+    {
+      match: "analytics.tiktok.com",
+      category: "marketing",
+      early: true
+      // TikTok Pixel. Samma form som Meta: snutt i huvudet.
+    },
+    {
+      match: "static.hotjar.com",
+      category: "analytics",
+      early: true
+      // Hotjar. Sessionsinspelning och värmekartor, laddas i huvudet.
+    },
+    {
+      match: "snap.licdn.com",
+      category: "marketing",
+      early: true
+      // LinkedIn Insight Tag.
+    }
+  ];
+  var EARLY_TRACKERS = TRACKERS.filter((t) => t.early).map((t) => ({
+    match: t.match,
+    category: t.category
+  }));
+
   // banner-src/style.css
   var style_default = `/* Bannern ligger i en shadow root. :host ar dess ytterelement, som ligger kvar
    i kundens sida med id="cookie-sectionId". Kundens egna varden satta pa det
@@ -2027,6 +2063,7 @@ button:hover {
       if (pending.length) log("[Meta] Koade anrop slappta efter init:", pending.length);
       const s = document.createElement("script");
       s.async = true;
+      s.setAttribute("data-seos-own", "1");
       s.src = "https://connect.facebook.net/en_US/fbevents.js";
       document.head.appendChild(s);
       log("[Meta] Pixel laddad efter samtycke:", META_PIXEL_ID);
@@ -2228,6 +2265,41 @@ button:hover {
         }
       }
     }
+    function extendGuardList() {
+      const guard = window.SEOS_GUARD;
+      if (!guard || !Array.isArray(guard.list)) return;
+      for (const tracker of TRACKERS) {
+        if (!guard.list.some((known) => known[0] === tracker.match)) {
+          guard.list.push([tracker.match, tracker.category]);
+        }
+      }
+    }
+    function releaseHeldScript(item) {
+      const old = item.el;
+      const script = document.createElement("script");
+      for (const attr of old.attributes) {
+        if (attr.name === "src") continue;
+        script.setAttribute(attr.name, attr.value);
+      }
+      if (old.textContent) script.textContent = old.textContent;
+      script.setAttribute("src", item.url);
+      if (old.parentNode) {
+        old.parentNode.insertBefore(script, old);
+        old.remove();
+      } else {
+        (document.head || document.documentElement).appendChild(script);
+      }
+    }
+    function releaseHeldScripts() {
+      const guard = window.SEOS_GUARD;
+      if (!guard || !Array.isArray(guard.held) || guard.held.length === 0) return;
+      const stillHeld = [];
+      for (const item of guard.held) {
+        if (seosApi.hasConsent(item.category)) releaseHeldScript(item);
+        else stillHeld.push(item);
+      }
+      guard.held = stillHeld;
+    }
     function embedCategory(element) {
       const key = element.getAttribute("data-seos-consent");
       if (CATEGORY_KEYS.indexOf(key) === -1) return null;
@@ -2271,6 +2343,7 @@ button:hover {
       )) {
         if (isGranted(embedCategory(element))) releaseScript(element);
       }
+      releaseHeldScripts();
       for (const element of document.querySelectorAll("iframe[data-seos-consent]")) {
         if (isGranted(embedCategory(element))) {
           releaseIframe(element);
@@ -2508,6 +2581,7 @@ button:hover {
     window.showPolicy = showPolicy;
     window.closePolicy = closePolicy;
     window.SEOS = seosApi;
+    extendGuardList();
     if (META_PIXEL_ID) ensureFbqStub();
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", initializeBanner);

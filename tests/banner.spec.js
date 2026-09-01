@@ -7,6 +7,8 @@ const SIDA = {
   kundCss: '/tests/fixtures/banner-kundcss.html',
   inbaddningar: '/tests/fixtures/banner-inbaddningar.html',
   felmarkt: '/tests/fixtures/banner-felmarkt.html',
+  vakt: '/tests/fixtures/banner-vakt.html',
+  vaktMeta: '/tests/fixtures/banner-vakt-meta.html',
 };
 
 /** Registrerar varje forsok att na Facebook, aven de vi blockerar. */
@@ -2017,5 +2019,254 @@ test.describe('C5 punkt 4: markering som ser ratt ut men inte fungerar', () => {
     // "hittepa", med flit. Exakt en varning ska komma, om just det.
     expect(varningar).toHaveLength(1);
     expect(varningar[0]).toContain('hittepa');
+  });
+});
+
+test.describe('C5 punkt 5: vakten', () => {
+  const oppna = async (page) => {
+    await page.goto(SIDA.vakt);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+  };
+
+  const kordes = (page, namn) => page.evaluate((n) => window[n], namn);
+
+  //=======================================================================
+  // VAKTEN HALLER TILLBAKA - fore bannern ens laddat
+  //=======================================================================
+
+  test('en listad sparare halls tillbaka fore samtycke', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+
+    // Sajtens kod FORSOKTE ladda bada, redan innan bannern fanns.
+    expect(await page.evaluate(() => window.SEOS_TEST.forsokt.length)).toBe(3);
+    // Men ingen av dem kordes.
+    expect(await kordes(page, 'SEOS_TEST_META_KORDE')).toBeUndefined();
+    expect(await kordes(page, 'SEOS_TEST_HOTJAR_KORDE')).toBeUndefined();
+  });
+
+  test('en OLISTAD tjanst ror vakten aldrig', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+
+    // Denylist, aldrig allowlist. Kanner vi inte igen adressen rors den inte.
+    await expect.poll(() => kordes(page, 'SEOS_TEST_OKAND_KORDE')).toBe(true);
+  });
+
+  test('vakten lagger undan det den haller, med ratt kategori', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+
+    const undanlagt = await page.evaluate(() =>
+      window.SEOS_GUARD.held.map((h) => h.category).sort(),
+    );
+    expect(undanlagt).toEqual(['analytics', 'marketing']);
+  });
+
+  //=======================================================================
+  // BANNERN SLAPPER FRAM
+  //=======================================================================
+
+  test('acceptera alla slapper fram bada', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+    await knapp.acceptera(page).click();
+
+    await expect.poll(() => kordes(page, 'SEOS_TEST_META_KORDE')).toBe(true);
+    await expect.poll(() => kordes(page, 'SEOS_TEST_HOTJAR_KORDE')).toBe(true);
+    expect(await page.evaluate(() => window.SEOS_GUARD.held.length)).toBe(0);
+  });
+
+  test('endast nodvandiga slapper inte fram nagot', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+    await knapp.neka(page).click();
+    await page.waitForTimeout(400);
+
+    expect(await kordes(page, 'SEOS_TEST_META_KORDE')).toBeUndefined();
+    expect(await kordes(page, 'SEOS_TEST_HOTJAR_KORDE')).toBeUndefined();
+    // Bada ligger kvar undanlagda, sa besokaren kan andra sig.
+    expect(await page.evaluate(() => window.SEOS_GUARD.held.length)).toBe(2);
+  });
+
+  test('bara den godkanda kategorin slapps fram', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+
+    await page.locator('#cookie-banner .btn-customize').click();
+    await expect(page.locator('#cookie-settings')).toBeVisible();
+    await page.locator('#analytics-toggle').click();
+    await page.locator('#cookie-settings .btn-save').click();
+
+    // Hotjar ar analys, Meta ar marknadsforing.
+    await expect.poll(() => kordes(page, 'SEOS_TEST_HOTJAR_KORDE')).toBe(true);
+    expect(await kordes(page, 'SEOS_TEST_META_KORDE')).toBeUndefined();
+    expect(await page.evaluate(() => window.SEOS_GUARD.held.length)).toBe(1);
+  });
+
+  //=======================================================================
+  // EFTER SAMTYCKET
+  //
+  // ⚠️ Halet som fanns i forsta utkastet: vakten fortsatte halla tillbaka
+  // varje NYTT skript efter samtycket, sa en widget som laddas vid klick hade
+  // aldrig kommit fram.
+  //=======================================================================
+
+  test('ett skript som skapas EFTER samtycket slapps igenom direkt', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+    await knapp.acceptera(page).click();
+    await expect.poll(() => kordes(page, 'SEOS_TEST_META_KORDE')).toBe(true);
+
+    // Sajtens kod laddar en widget nar nagon klickar, efter samtycket.
+    await page.evaluate(() => {
+      window.SEOS_TEST_SENARE = false;
+      const s = document.createElement('script');
+      s.src = '/tests/fixtures/connect.facebook.net/pixel.js';
+      s.onload = () => (window.SEOS_TEST_SENARE = true);
+      document.head.appendChild(s);
+    });
+
+    await expect.poll(() => kordes(page, 'SEOS_TEST_SENARE')).toBe(true);
+    expect(await page.evaluate(() => window.SEOS_GUARD.held.length)).toBe(0);
+  });
+
+  test('ett skript som skapas efter ETT NEJ halls fortfarande tillbaka', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+    await knapp.neka(page).click();
+    await page.waitForTimeout(300);
+
+    await page.evaluate(() => {
+      const s = document.createElement('script');
+      s.src = '/tests/fixtures/static.hotjar.com/hotjar.js';
+      document.head.appendChild(s);
+    });
+    await page.waitForTimeout(400);
+
+    expect(await kordes(page, 'SEOS_TEST_HOTJAR_KORDE')).toBeUndefined();
+    // De tva fran sidladdningen plus den nya.
+    expect(await page.evaluate(() => window.SEOS_GUARD.held.length)).toBe(3);
+  });
+
+  //=======================================================================
+  // TVALAGERSLOSNINGEN
+  //=======================================================================
+
+  test('bannern fyller pa vaktens lista med den fullstandiga', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+
+    // Snutten bar de fyra stabila. Bannern lagger till hela listan; sa lange
+    // de ar lika manga bevisar testet bara att pafyllningen kordes utan att
+    // duplicera - vilket ar det som kan ga sonder.
+    const lista = await page.evaluate(() => window.SEOS_GUARD.list.map((t) => t[0]));
+    const unika = new Set(lista);
+    expect(unika.size).toBe(lista.length);
+    expect(lista).toContain('connect.facebook.net');
+    expect(lista).toContain('static.hotjar.com');
+  });
+
+  test('vakten fungerar aven om bannern aldrig laddar', async ({ page }) => {
+    await medSkugga(page);
+    await page.route('**/v1/banner.js', (route) => route.abort('failed'));
+    await page.goto(SIDA.vakt);
+    await page.waitForTimeout(600);
+
+    // Det sakra felet: utan banner forblir det tillbakahallet.
+    expect(await kordes(page, 'SEOS_TEST_META_KORDE')).toBeUndefined();
+    expect(await kordes(page, 'SEOS_TEST_HOTJAR_KORDE')).toBeUndefined();
+    expect(await page.evaluate(() => window.SEOS_GUARD.held.length)).toBe(2);
+  });
+
+  test('en sajt UTAN vakt fungerar precis som forut', async ({ page }) => {
+    await medSkugga(page);
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    expect(await page.evaluate(() => typeof window.SEOS_GUARD)).toBe('undefined');
+    // Bannern ska inte krascha av att vakten saknas.
+    await knapp.acceptera(page).click();
+    await expect(page.locator('#cookie-banner')).toBeHidden();
+  });
+
+  //=======================================================================
+  // SNUTTEN SOM KLISTRAS IN
+  //=======================================================================
+
+  test('snutten och testfixturen ar samma kod', async ({ page }) => {
+    const fs = require('fs');
+    const snutt = fs.readFileSync('guard-snippet.html', 'utf8');
+    const fixtur = fs.readFileSync('tests/fixtures/vakt.js', 'utf8');
+    // Driver de isar gronskar testerna mot en vakt kunderna inte har.
+    expect(snutt).toContain(fixtur.trim());
+  });
+});
+
+test.describe('C5 punkt 5: vakten far inte blockera bannerns egen Meta-pixel', () => {
+  // ⚠️ Den farligaste kombinationen. Vakten haller tillbaka
+  // connect.facebook.net, och bannern laddar sjalv exakt den adressen efter
+  // samtycke. Utan markeringen data-seos-own blockerar vakten var egen
+  // pixelladdning - tvartemot vad besokaren just sagt ja till, och helt tyst.
+  //
+  // Ingen av de befintliga sidorna hade fangat det: banner-meta.html har ingen
+  // vakt, banner-vakt.html har ingen pixel.
+
+  test('inget anrop till Facebook fore samtycke, aven med vakten pa', async ({ page }) => {
+    const anrop = spionaPaFacebook(page);
+    await blockeraFacebook(page);
+    await medSkugga(page);
+    await page.goto(SIDA.vaktMeta);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    await page.waitForTimeout(400);
+
+    expect(anrop).toEqual([]);
+  });
+
+  test('bannerns pixel laddas VID samtycke, trots att vakten listar adressen', async ({ page }) => {
+    const anrop = spionaPaFacebook(page);
+    await blockeraFacebook(page);
+    await medSkugga(page);
+    await page.goto(SIDA.vaktMeta);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    await knapp.acceptera(page).click();
+
+    // Om markeringen data-seos-own tappas blir den har listan tom for alltid.
+    await expect.poll(() => anrop.length, { timeout: 8000 }).toBeGreaterThan(0);
+    expect(anrop.some((u) => u.includes('fbevents.js'))).toBe(true);
+  });
+
+  test('bannerns skript bar data-seos-own, inte vaktens undanlaggning', async ({ page }) => {
+    await blockeraFacebook(page);
+    await medSkugga(page);
+    await page.goto(SIDA.vaktMeta);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    await knapp.acceptera(page).click();
+    await page.waitForTimeout(600);
+
+    // Skriptet ska finnas i sidan med sin adress satt...
+    const eget = await page.evaluate(() =>
+      [...document.querySelectorAll('script[data-seos-own]')].map((s) => s.getAttribute('src')),
+    );
+    expect(eget.some((s) => (s || '').includes('fbevents.js'))).toBe(true);
+
+    // ...och vakten ska inte ha lagt undan nagot.
+    expect(await page.evaluate(() => window.SEOS_GUARD.held.length)).toBe(0);
+  });
+
+  test('endast nodvandiga: pixeln laddas inte, och vakten har inte heller slappt den', async ({
+    page,
+  }) => {
+    const anrop = spionaPaFacebook(page);
+    await blockeraFacebook(page);
+    await medSkugga(page);
+    await page.goto(SIDA.vaktMeta);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    await knapp.neka(page).click();
+    await page.waitForTimeout(600);
+
+    expect(anrop).toEqual([]);
   });
 });

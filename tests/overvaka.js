@@ -33,6 +33,7 @@ async function kontrollera(webblasare, sajt) {
 
   const jsFel = [];
   const laddadeSkript = [];
+  let vakt = false;
   sida.on('pageerror', (e) => jsFel.push(e.message));
   sida.on('request', (r) => {
     if (r.url().includes('seos-cookie-banner.vercel.app')) laddadeSkript.push(r.url());
@@ -90,13 +91,24 @@ async function kontrollera(webblasare, sajt) {
     }
 
     if (jsFel.length) brister.push('JavaScript-fel: ' + jsFel.join(' | '));
+
+    // VAKTEN (C5 punkt 5). Rapporteras, larmar INTE.
+    //
+    // Snutten klistras in per sajt och gar inte att rulla ut fran var sida, sa
+    // en sajt utan den ar inte trasig - den ar bara inte uppsatt an. Ett larm
+    // som gar for varje sajt som inte hunnit slutar betyda nagot, samma
+    // lardom som byggkontrollen och cookie-skannern.
+    //
+    // Men den ska SYNAS: utan raden i huvudet fangas ingenting som laddas
+    // innan bannern hunnit, och det ar omojligt att se pa sidan.
+    vakt = await sida.evaluate(() => typeof window.SEOS_GUARD === 'object');
   } catch (fel) {
     brister.push('kunde inte ladda sidan: ' + fel.message.split('\n')[0]);
   } finally {
     await context.close();
   }
 
-  return { brister, jsFel };
+  return { brister, jsFel, vakt };
 }
 
 (async () => {
@@ -125,7 +137,7 @@ async function kontrollera(webblasare, sajt) {
       resultat.brister.forEach((b) => console.log(`     ${b}`));
       misslyckade.push(`**${sajt.namn}** (${sajt.url})\n  - ` + resultat.brister.join('\n  - '));
     } else {
-      console.log(`  ${sajt.namn.padEnd(14)} ok`);
+      console.log(`  ${sajt.namn.padEnd(14)} ok${resultat.vakt ? '   vakt' : '   ingen vakt'}`);
     }
   }
 

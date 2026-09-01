@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8" />
+    <title>Testsida — vakten (C5 punkt 5)</title>
+
+    <!--
+      VAKTEN. Ligger först, före allt annat — precis som hos en kund.
+      Innehållet är en kopia av guard-snippet.html; ett test kontrollerar att
+      de två inte driver isär.
+    -->
+    <script src="/tests/fixtures/vakt.js"></script>
+  </head>
+  <body>
+    <h1>Vakten</h1>
+
+    <script>
+      // Härmar hur en tredjepartstjänst faktiskt laddas: en liten loader som
+      // skapar ett skript i JavaScript. Det är precis det vakten finns för —
+      // ingen HTML-rad att märka.
+      window.SEOS_TEST = { forsokt: [], laddade: [] };
+
+      window.laddaSparare = function (url) {
+        window.SEOS_TEST.forsokt.push(url);
+        const s = document.createElement('script');
+        s.src = url;
+        s.onload = () => window.SEOS_TEST.laddade.push(url);
+        document.head.appendChild(s);
+        return s;
+      };
+
+      // Meta (marknadsföring) och Hotjar (analys) — två olika kategorier, så
+      // testerna kan skilja dem åt. Adresserna pekar på en lokal fil, men
+      // strängen innehåller spårarens värdnamn, vilket är det vakten matchar.
+      window.laddaSparare('/tests/fixtures/connect.facebook.net/pixel.js');
+      window.laddaSparare('/tests/fixtures/static.hotjar.com/hotjar.js');
+
+      // En tjänst som INTE står i listan. Ska laddas som vanligt — denylist,
+      // aldrig allowlist.
+      window.laddaSparare('/tests/fixtures/tom-skript.js');
+    </script>
+
+    <script src="/src/v1/banner.js" data-site-key="pk_test_vakt" async></script>
+  </body>
+</html>

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8" />
+    <title>Testsida — vakten OCH Meta-pixeln (C5 punkt 5)</title>
+
+    <!--
+      Den farligaste kombinationen, och skälet till att den här sidan finns.
+
+      Vakten håller tillbaka connect.facebook.net. Bannern laddar SJÄLV exakt
+      den adressen efter samtycke (loadMetaPixel). Utan markeringen
+      data-seos-own hade vakten blockerat vår egen pixelladdning — alltså
+      tvärtemot vad besökaren just sagt ja till, och helt tyst.
+
+      Ingen av de två sidorna var för sig hade upptäckt det: banner-meta.html
+      har ingen vakt, och banner-vakt.html har ingen pixel.
+    -->
+    <script src="/tests/fixtures/vakt.js"></script>
+  </head>
+  <body>
+    <h1>Vakten och Meta-pixeln</h1>
+
+    <script src="/src/v1/banner.js" data-meta-pixel-id="1234567890123456" async></script>
+  </body>
+</html>

@@ -34,6 +34,12 @@ const ROT = __dirname;
 const ENTRY = path.join(ROT, 'banner-src', 'script.js');
 const UTFIL = path.join(ROT, 'src', 'v1', 'banner.js');
 
+// VAKTEN (C5 punkt 5). Byggs till en fardig <script>-snutt som klistras in i
+// kundens <head>. Ligger i repotets rot och INTE i src/, eftersom den aldrig
+// ska hamtas over natet - hela poangen ar att den ar inline och hinner fore.
+const GUARD_ENTRY = path.join(ROT, 'banner-src', 'guard.js');
+const GUARD_UTFIL = path.join(ROT, 'guard-snippet.html');
+
 // Lases direkt fran filen: paketets "exports" slapper inte igenom
 // require('dompurify/package.json').
 const dompurifyVersion = JSON.parse(
@@ -104,11 +110,69 @@ esbuild
     legalComments: 'inline',
     banner: { js: huvud },
   })
+  // Listan lases ut ur trackers.js redan har, sa att snutten far den FARDIG.
+  // Att baka in hela listan och filtrera den i webblasaren kostade 167 tecken
+  // inline i varje kunds huvud, pa varje sidladdning, for noll nytta.
+  .then(() =>
+    esbuild.build({
+      entryPoints: [path.join(ROT, 'banner-src', 'trackers.js')],
+      outfile: GUARD_UTFIL + '.trackers.cjs',
+      bundle: true,
+      format: 'cjs',
+      platform: 'node',
+    }),
+  )
   .then(() => {
+    const listfil = GUARD_UTFIL + '.trackers.cjs';
+    const { EARLY_TRACKERS } = require(listfil);
+    fs.unlinkSync(listfil);
+
+    // Par och inte objekt: nycklarna match/category upprepade en gang per rad
+    // ar ren vikt i kundens huvud.
+    const par = EARLY_TRACKERS.map((t) => [t.match, t.category]);
+
+    // Vakten minifieras, till skillnad fran bannern: den ligger inline i
+    // kundens huvud dar varje byte kostar, och den granskas i sin KALLA
+    // (banner-src/guard.js), inte i den genererade snutten.
+    return esbuild.build({
+      plugins: [normaliseraRadslut],
+      entryPoints: [GUARD_ENTRY],
+      outfile: GUARD_UTFIL + '.tmp.js',
+      bundle: true,
+      format: 'iife',
+      target: 'es2020',
+      charset: 'utf8',
+      minify: true,
+      legalComments: 'none',
+      define: { __SEOS_EARLY__: JSON.stringify(par) },
+    });
+  })
+  .then(() => {
+    const kod = fs.readFileSync(GUARD_UTFIL + '.tmp.js', 'utf8').trim();
+    fs.unlinkSync(GUARD_UTFIL + '.tmp.js');
+
+    const snutt = [
+      '<!-- SEOS-vakten. Måste ligga först i <head>, före allt annat.',
+      '     Genererad av npm run build från banner-src/guard.js — redigera inte här.',
+      '     Klistras in en gång per sajt. Se driftmanualen avsnitt 16. -->',
+      '<script>' + kod + '</script>',
+      '',
+    ].join(String.fromCharCode(10));
+
+    fs.writeFileSync(GUARD_UTFIL, snutt);
+
+    // Samma kod, som fristaende fil, at testsidan. Genereras HAR i stallet for
+    // att kopieras for hand - annars kan testet gronska mot en gammal vakt
+    // medan kunderna far en ny.
+    fs.writeFileSync(path.join(ROT, 'tests', 'fixtures', 'vakt.js'), kod);
+
     const bytes = fs.statSync(UTFIL).size;
     const gzip = zlib.gzipSync(fs.readFileSync(UTFIL)).length;
     const kb = (n) => (n / 1024).toFixed(1) + ' kB';
 
+    const guardBytes = fs.statSync(GUARD_UTFIL).size;
+
     console.log(`Byggd: src/v1/banner.js  ${kb(bytes)}  (${kb(gzip)} gzippad)`);
+    console.log(`Byggd: guard-snippet.html  ${kb(guardBytes)}  (inline hos kunden)`);
   })
   .catch(() => process.exit(1));
