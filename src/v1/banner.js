@@ -1424,27 +1424,27 @@ button:hover {
       is_required: key === "necessary",
       visibility: "toggle"
     }));
-    function sanitizeCategories(lista) {
-      if (!Array.isArray(lista)) return [];
-      const funna = /* @__PURE__ */ new Map();
-      for (const rad of lista) {
-        if (!rad || typeof rad !== "object") continue;
-        if (typeof rad.key !== "string") continue;
-        if (CATEGORY_KEYS.indexOf(rad.key) === -1) continue;
-        funna.set(rad.key, {
-          is_required: rad.is_required === true,
+    function sanitizeCategories(list) {
+      if (!Array.isArray(list)) return [];
+      const found = /* @__PURE__ */ new Map();
+      for (const row of list) {
+        if (!row || typeof row !== "object") continue;
+        if (typeof row.key !== "string") continue;
+        if (CATEGORY_KEYS.indexOf(row.key) === -1) continue;
+        found.set(row.key, {
+          is_required: row.is_required === true,
           // Bara ett uttryckligt 'notice' ger besked. Allt annat - okant varde,
           // saknat falt, ett API som annu inte skickar det - blir reglage.
           // Det sakra fallet ar att FRAGA, inte att pasta nagot om sajten.
-          visibility: rad.visibility === "notice" ? "notice" : "toggle"
+          visibility: row.visibility === "notice" ? "notice" : "toggle"
         });
       }
-      if (!funna.size) return [];
-      funna.set("necessary", { is_required: true, visibility: "toggle" });
-      return CATEGORY_KEYS.filter((key) => funna.has(key)).map((key) => ({
+      if (!found.size) return [];
+      found.set("necessary", { is_required: true, visibility: "toggle" });
+      return CATEGORY_KEYS.filter((key) => found.has(key)).map((key) => ({
         key,
-        is_required: funna.get(key).is_required,
-        visibility: funna.get(key).visibility
+        is_required: found.get(key).is_required,
+        visibility: found.get(key).visibility
       }));
     }
     const CONFIG_TIMEOUT_MS = 800;
@@ -1455,46 +1455,46 @@ button:hover {
       return loadedCategories && loadedCategories.length ? loadedCategories : DEFAULT_CATEGORIES;
     }
     function toggleCategories() {
-      return activeCategories().filter((kategori) => kategori.visibility !== "notice");
+      return activeCategories().filter((category) => category.visibility !== "notice");
     }
     const TEXT_LANGUAGES = /* @__PURE__ */ new Set(["sv", "en"]);
     const TEXT_FIELDS = /* @__PURE__ */ new Set(["label", "description", "notice"]);
     const MAX_TEXT_LENGTH = 300;
     const UNSAFE_TEXT = /[<>]/;
-    function isValidText(varde) {
-      return typeof varde === "string" && varde.trim().length > 0 && varde.length <= MAX_TEXT_LENGTH && !UNSAFE_TEXT.test(varde);
+    function isValidText(value) {
+      return typeof value === "string" && value.trim().length > 0 && value.length <= MAX_TEXT_LENGTH && !UNSAFE_TEXT.test(value);
     }
     function sanitizeTexts(texts) {
       if (!texts || typeof texts !== "object" || Array.isArray(texts)) return {};
-      const rensad = {};
-      for (const sprak in texts) {
-        if (!TEXT_LANGUAGES.has(sprak)) continue;
-        const kategorier = texts[sprak];
-        if (!kategorier || typeof kategorier !== "object" || Array.isArray(kategorier)) continue;
-        const perKategori = {};
-        for (const kategori in kategorier) {
-          if (CATEGORY_KEYS.indexOf(kategori) === -1) continue;
-          const falt = kategorier[kategori];
-          if (!falt || typeof falt !== "object" || Array.isArray(falt)) continue;
-          const perFalt = {};
-          for (const namn in falt) {
-            if (!TEXT_FIELDS.has(namn)) continue;
-            if (kategori === "necessary" && namn === "notice") continue;
-            if (!isValidText(falt[namn])) continue;
-            perFalt[namn] = falt[namn];
+      const cleaned = {};
+      for (const lang in texts) {
+        if (!TEXT_LANGUAGES.has(lang)) continue;
+        const categories = texts[lang];
+        if (!categories || typeof categories !== "object" || Array.isArray(categories)) continue;
+        const perCategory = {};
+        for (const category in categories) {
+          if (CATEGORY_KEYS.indexOf(category) === -1) continue;
+          const field = categories[category];
+          if (!field || typeof field !== "object" || Array.isArray(field)) continue;
+          const perField = {};
+          for (const name in field) {
+            if (!TEXT_FIELDS.has(name)) continue;
+            if (category === "necessary" && name === "notice") continue;
+            if (!isValidText(field[name])) continue;
+            perField[name] = field[name];
           }
-          if (Object.keys(perFalt).length > 0) perKategori[kategori] = perFalt;
+          if (Object.keys(perField).length > 0) perCategory[category] = perField;
         }
-        if (Object.keys(perKategori).length > 0) rensad[sprak] = perKategori;
+        if (Object.keys(perCategory).length > 0) cleaned[lang] = perCategory;
       }
-      return rensad;
+      return cleaned;
     }
     function applyDesign() {
       if (!loadedDesign) return;
       const host = document.getElementById(HOST_ID);
       if (!host) return;
-      for (const nyckel in loadedDesign) {
-        host.style.setProperty("--" + nyckel, loadedDesign[nyckel]);
+      for (const key in loadedDesign) {
+        host.style.setProperty("--" + key, loadedDesign[key]);
       }
     }
     function isFreshMode() {
@@ -1505,38 +1505,38 @@ button:hover {
         return false;
       }
     }
-    const TOM_CONFIG = { design: {}, categories: [], texts: {} };
+    const EMPTY_CONFIG = { design: {}, categories: [], texts: {} };
     async function fetchConfig() {
-      if (!SITE_KEY) return TOM_CONFIG;
-      const styrning = new AbortController();
-      const klocka = setTimeout(() => styrning.abort(), CONFIG_TIMEOUT_MS);
+      if (!SITE_KEY) return EMPTY_CONFIG;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), CONFIG_TIMEOUT_MS);
       try {
-        const adress = `${API_BASE_URL}/config/${encodeURIComponent(SITE_KEY)}` + (isFreshMode() ? `?farsk=${Date.now()}` : "");
-        const svar = await fetch(adress, { signal: styrning.signal });
-        if (!svar.ok) return TOM_CONFIG;
-        const data = await svar.json();
-        if (!data || typeof data !== "object") return TOM_CONFIG;
+        const url = `${API_BASE_URL}/config/${encodeURIComponent(SITE_KEY)}` + (isFreshMode() ? `?farsk=${Date.now()}` : "");
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) return EMPTY_CONFIG;
+        const data = await response.json();
+        if (!data || typeof data !== "object") return EMPTY_CONFIG;
         const design = data.design;
-        const rensad = {};
+        const cleaned = {};
         if (design && typeof design === "object") {
-          for (const nyckel in design) {
-            const varde = design[nyckel];
-            if (!DESIGN_VARIABLES.has(nyckel)) continue;
-            if (typeof varde !== "string" || !varde || varde.length > 200) continue;
-            if (UNSAFE_VALUE.test(varde)) continue;
-            rensad[nyckel] = varde;
+          for (const key in design) {
+            const value = design[key];
+            if (!DESIGN_VARIABLES.has(key)) continue;
+            if (typeof value !== "string" || !value || value.length > 200) continue;
+            if (UNSAFE_VALUE.test(value)) continue;
+            cleaned[key] = value;
           }
         }
         return {
-          design: rensad,
+          design: cleaned,
           categories: sanitizeCategories(data.categories),
           texts: sanitizeTexts(data.texts)
         };
-      } catch (fel) {
-        log("[Config] Kunde inte hamta config:", fel && fel.message);
-        return TOM_CONFIG;
+      } catch (error) {
+        log("[Config] Kunde inte hamta config:", error && error.message);
+        return EMPTY_CONFIG;
       } finally {
-        clearTimeout(klocka);
+        clearTimeout(timer);
       }
     }
     let configPromise = null;
@@ -1554,10 +1554,10 @@ button:hover {
       return configPromise;
     }
     function applyCategories() {
-      const behallare = el("settings-container");
-      if (!behallare) return;
-      behallare.textContent = "";
-      renderCategoryCards(behallare);
+      const container = el("settings-container");
+      if (!container) return;
+      container.textContent = "";
+      renderCategoryCards(container);
     }
     if (!getCookie("consent_status")) ensureConfig();
     const META_PIXEL_ID = selfScript && selfScript.dataset && selfScript.dataset.metaPixelId || window.SEOS_META_PIXEL_ID || null;
@@ -1565,83 +1565,83 @@ button:hover {
     const pageLang = (window.SEOS_COOKIE_LANG || document.documentElement.lang || "").split("-")[0].toLowerCase();
     const t = translations[pageLang] || translations["en"];
     const textLang = translations[pageLang] ? pageLang : "en";
-    function kategoriTexter() {
-      const egna = loadedTexts && loadedTexts[textLang] || {};
-      const valj = (nyckel, falt, standard) => {
-        const rad = egna[nyckel];
-        return rad && typeof rad[falt] === "string" ? rad[falt] : standard;
+    function categoryTexts() {
+      const own = loadedTexts && loadedTexts[textLang] || {};
+      const pick = (key, field, fallback) => {
+        const row = own[key];
+        return row && typeof row[field] === "string" ? row[field] : fallback;
       };
       return {
         necessary: {
-          etikett: valj("necessary", "label", t.necessaryLabel),
-          text: valj("necessary", "description", t.necessaryDesc)
+          label: pick("necessary", "label", t.necessaryLabel),
+          description: pick("necessary", "description", t.necessaryDesc)
         },
         analytics: {
-          etikett: valj("analytics", "label", t.analyticsLabel),
-          text: valj("analytics", "description", t.analyticsDesc),
-          saknas: valj("analytics", "notice", t.analyticsNone)
+          label: pick("analytics", "label", t.analyticsLabel),
+          description: pick("analytics", "description", t.analyticsDesc),
+          notice: pick("analytics", "notice", t.analyticsNone)
         },
         functional: {
-          etikett: valj("functional", "label", t.functionalLabel),
-          text: valj("functional", "description", t.functionalDesc),
-          saknas: valj("functional", "notice", t.functionalNone)
+          label: pick("functional", "label", t.functionalLabel),
+          description: pick("functional", "description", t.functionalDesc),
+          notice: pick("functional", "notice", t.functionalNone)
         },
         marketing: {
-          etikett: valj("marketing", "label", t.marketingLabel),
-          text: valj("marketing", "description", t.marketingDesc),
-          saknas: valj("marketing", "notice", t.marketingNone)
+          label: pick("marketing", "label", t.marketingLabel),
+          description: pick("marketing", "description", t.marketingDesc),
+          notice: pick("marketing", "notice", t.marketingNone)
         }
       };
     }
-    function renderCategoryCards(behallare) {
-      const texter = kategoriTexter();
-      for (const kategori of activeCategories()) {
-        const text = texter[kategori.key];
-        if (!text) continue;
-        if (kategori.visibility === "notice" && !text.saknas) continue;
-        const besked = kategori.visibility === "notice";
-        const kort = document.createElement("div");
-        kort.className = besked ? "cookie-category-card category-notice" : "cookie-category-card";
-        const omslag = document.createElement("div");
-        omslag.className = "category-text-wrapper";
-        const rubrik = document.createElement("h5");
-        rubrik.id = `etikett-${kategori.key}`;
-        rubrik.textContent = text.etikett;
-        const brodtext = document.createElement("p");
-        brodtext.id = `text-${kategori.key}`;
-        brodtext.textContent = besked ? text.saknas : text.text;
-        omslag.append(rubrik, brodtext);
-        kort.appendChild(omslag);
-        if (besked) {
-          behallare.appendChild(kort);
+    function renderCategoryCards(container) {
+      const texts = categoryTexts();
+      for (const category of activeCategories()) {
+        const copy = texts[category.key];
+        if (!copy) continue;
+        if (category.visibility === "notice" && !copy.notice) continue;
+        const isNotice = category.visibility === "notice";
+        const card = document.createElement("div");
+        card.className = isNotice ? "cookie-category-card category-notice" : "cookie-category-card";
+        const wrapper = document.createElement("div");
+        wrapper.className = "category-text-wrapper";
+        const heading = document.createElement("h5");
+        heading.id = `etikett-${category.key}`;
+        heading.textContent = copy.label;
+        const bodyText = document.createElement("p");
+        bodyText.id = `text-${category.key}`;
+        bodyText.textContent = isNotice ? copy.notice : copy.description;
+        wrapper.append(heading, bodyText);
+        card.appendChild(wrapper);
+        if (isNotice) {
+          container.appendChild(card);
           continue;
         }
-        const knapp = document.createElement("button");
-        knapp.type = "button";
-        knapp.setAttribute("role", "switch");
-        knapp.setAttribute("aria-labelledby", rubrik.id);
-        knapp.setAttribute("aria-describedby", brodtext.id);
-        if (kategori.is_required) {
-          const marke = document.createElement("span");
-          marke.className = "badge";
-          marke.textContent = t.requiredBadge;
-          rubrik.append(" ", marke);
-          knapp.className = "toggle-switch always-active";
-          knapp.setAttribute("aria-checked", "true");
-          knapp.disabled = true;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.setAttribute("role", "switch");
+        button.setAttribute("aria-labelledby", heading.id);
+        button.setAttribute("aria-describedby", bodyText.id);
+        if (category.is_required) {
+          const badge = document.createElement("span");
+          badge.className = "badge";
+          badge.textContent = t.requiredBadge;
+          heading.append(" ", badge);
+          button.className = "toggle-switch always-active";
+          button.setAttribute("aria-checked", "true");
+          button.disabled = true;
         } else {
-          const reglage = `${kategori.key}-toggle`;
-          kort.dataset.handling = "vaxla";
-          kort.dataset.reglage = reglage;
-          knapp.className = "toggle-switch";
-          knapp.id = reglage;
-          knapp.setAttribute("aria-checked", "false");
+          const toggleId = `${category.key}-toggle`;
+          card.dataset.handling = "vaxla";
+          card.dataset.reglage = toggleId;
+          button.className = "toggle-switch";
+          button.id = toggleId;
+          button.setAttribute("aria-checked", "false");
         }
         const slider = document.createElement("span");
         slider.className = "toggle-slider";
-        knapp.appendChild(slider);
-        kort.appendChild(knapp);
-        behallare.appendChild(kort);
+        button.appendChild(slider);
+        card.appendChild(button);
+        container.appendChild(card);
       }
     }
     function injectBannerHTML() {
@@ -1736,16 +1736,16 @@ button:hover {
       style.id = "seos-cookie-css";
       style.textContent = style_default;
       shadow.appendChild(style);
-      const mall = document.createElement("template");
-      mall.innerHTML = bannerHTML;
-      shadow.appendChild(mall.content);
+      const template = document.createElement("template");
+      template.innerHTML = bannerHTML;
+      shadow.appendChild(template.content);
       applyCategories();
       bindEvents();
       bindKeyboard();
       bindScroll();
     }
     function bindEvents() {
-      const handlingar = {
+      const actions = {
         visaPolicy: showPolicy,
         oppnaInstallningar: openSettings,
         endastNodvandiga: acceptEssential,
@@ -1755,13 +1755,13 @@ button:hover {
         stangPolicy: closePolicy,
         vaxla: (element) => toggleCookie(el(element.dataset.reglage))
       };
-      shadow.addEventListener("click", (handelse) => {
-        const traff = handelse.target.closest("[data-handling]");
-        if (!traff) return;
-        const kor = handlingar[traff.dataset.handling];
-        if (!kor) return;
-        handelse.preventDefault();
-        kor(traff);
+      shadow.addEventListener("click", (event) => {
+        const match = event.target.closest("[data-handling]");
+        if (!match) return;
+        const run = actions[match.dataset.handling];
+        if (!run) return;
+        event.preventDefault();
+        run(match);
       });
     }
     function generateUUID() {
@@ -1811,27 +1811,27 @@ button:hover {
       client_consent_id_cache = clientId;
       return clientId;
     }
-    let fokusFore = null;
-    function moveFocusTo(ruta) {
-      if (!ruta) return;
-      ruta.focus();
+    let focusBefore = null;
+    function moveFocusTo(box) {
+      if (!box) return;
+      box.focus();
     }
     function rememberFocus() {
-      const aktiv = shadow && shadow.activeElement ? shadow.activeElement : document.activeElement;
-      if (aktiv) fokusFore = aktiv;
+      const active = shadow && shadow.activeElement ? shadow.activeElement : document.activeElement;
+      if (active) focusBefore = active;
     }
     function restoreFocus() {
-      if (fokusFore && typeof fokusFore.focus === "function") fokusFore.focus();
-      fokusFore = null;
+      if (focusBefore && typeof focusBefore.focus === "function") focusBefore.focus();
+      focusBefore = null;
     }
-    function scrollableBox(handelse) {
-      const vag = typeof handelse.composedPath === "function" ? handelse.composedPath() : [];
-      for (const nod of vag) {
-        if (nod === shadow || nod === shadow.host) break;
-        if (!nod || nod.nodeType !== 1) continue;
-        const stil = window.getComputedStyle(nod);
-        const rullbar = stil.overflowY === "auto" || stil.overflowY === "scroll";
-        if (rullbar && nod.scrollHeight > nod.clientHeight + 1) return nod;
+    function scrollableBox(event) {
+      const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+      for (const node of path) {
+        if (node === shadow || node === shadow.host) break;
+        if (!node || node.nodeType !== 1) continue;
+        const styleEl = window.getComputedStyle(node);
+        const scrollable = styleEl.overflowY === "auto" || styleEl.overflowY === "scroll";
+        if (scrollable && node.scrollHeight > node.clientHeight + 1) return node;
       }
       return null;
     }
@@ -1839,26 +1839,26 @@ button:hover {
       if (!shadow) return;
       shadow.addEventListener(
         "wheel",
-        (handelse) => {
-          const ruta = scrollableBox(handelse);
-          if (!ruta) return;
-          const nedat = handelse.deltaY > 0;
-          const kanRullaVidare = nedat ? ruta.scrollTop < ruta.scrollHeight - ruta.clientHeight - 1 : ruta.scrollTop > 0;
-          if (kanRullaVidare) handelse.stopPropagation();
+        (event) => {
+          const box = scrollableBox(event);
+          if (!box) return;
+          const nedat = event.deltaY > 0;
+          const canScrollFurther = nedat ? box.scrollTop < box.scrollHeight - box.clientHeight - 1 : box.scrollTop > 0;
+          if (canScrollFurther) event.stopPropagation();
         },
         true
       );
     }
     function bindKeyboard() {
-      shadow.addEventListener("keydown", (handelse) => {
-        if (handelse.key !== "Escape") return;
-        const installningar = el(SETTINGS_ID);
+      shadow.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") return;
+        const settings = el(SETTINGS_ID);
         const policy = el(POLICY_ID);
         if (policy && policy.style.display !== "none") {
-          handelse.preventDefault();
+          event.preventDefault();
           closePolicy();
-        } else if (installningar && installningar.style.display !== "none") {
-          handelse.preventDefault();
+        } else if (settings && settings.style.display !== "none") {
+          event.preventDefault();
           backToBanner();
         }
       });
@@ -1875,26 +1875,26 @@ button:hover {
     function showSettingsModal() {
       rememberFocus();
       hideAllBanners();
-      const ruta = el(SETTINGS_ID);
-      ruta.style.display = "flex";
-      moveFocusTo(ruta);
+      const box = el(SETTINGS_ID);
+      box.style.display = "flex";
+      moveFocusTo(box);
     }
     function showPolicyModal() {
       rememberFocus();
       hideAllBanners();
-      const ruta = el(POLICY_ID);
-      ruta.style.display = "flex";
-      moveFocusTo(ruta);
+      const box = el(POLICY_ID);
+      box.style.display = "flex";
+      moveFocusTo(box);
     }
     function acceptAllConsent() {
       const clientId = getOrCreateClientId();
-      const visade = {};
-      for (const kategori of toggleCategories()) visade[kategori.key] = true;
+      const seen = {};
+      for (const category of toggleCategories()) seen[category.key] = true;
       return {
         necessary: true,
-        analytics: visade.analytics === true,
-        marketing: visade.marketing === true,
-        functional: visade.functional === true,
+        analytics: seen.analytics === true,
+        marketing: seen.marketing === true,
+        functional: seen.functional === true,
         client_id: clientId,
         site_key: SITE_KEY,
         domain: window.location.hostname,
@@ -1924,37 +1924,37 @@ button:hover {
     const QUEUE_MAX_ATTEMPTS = 5;
     function readQueue() {
       try {
-        const rad = window.localStorage.getItem(QUEUE_KEY);
-        const ko = rad ? JSON.parse(rad) : [];
-        return Array.isArray(ko) ? ko : [];
+        const row = window.localStorage.getItem(QUEUE_KEY);
+        const queue = row ? JSON.parse(row) : [];
+        return Array.isArray(queue) ? queue : [];
       } catch (e) {
         return [];
       }
     }
-    function writeQueue(ko) {
+    function writeQueue(queue) {
       try {
-        if (ko.length) window.localStorage.setItem(QUEUE_KEY, JSON.stringify(ko));
+        if (queue.length) window.localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
         else window.localStorage.removeItem(QUEUE_KEY);
       } catch (e) {
       }
     }
     async function postConsent(payload) {
       try {
-        const svar = await fetch(`${API_BASE_URL}/consent`, {
+        const response = await fetch(`${API_BASE_URL}/consent`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
-        if (svar.ok) {
+        if (response.ok) {
           log("[Backend] Consent recorded successfully");
           return "ok";
         }
-        if (svar.status >= 400 && svar.status < 500) {
-          const detaljer = await svar.json().catch(() => ({}));
-          console.error("[Backend] Consent avvisad, status:", svar.status, detaljer);
+        if (response.status >= 400 && response.status < 500) {
+          const details = await response.json().catch(() => ({}));
+          console.error("[Backend] Consent avvisad, status:", response.status, details);
           return "avvisad";
         }
-        console.error("[Backend] Consent POST failed, status:", svar.status);
+        console.error("[Backend] Consent POST failed, status:", response.status);
         return "fel";
       } catch (error) {
         console.error("[Backend] Network error - could not reach server:", error);
@@ -1962,29 +1962,29 @@ button:hover {
       }
     }
     function queueConsent(payload) {
-      const ko = readQueue();
-      ko.push({ payload, forsok: 0 });
-      writeQueue(ko.slice(-QUEUE_MAX_ITEMS));
-      log("[Ko] Samtycke koat, poster i ko:", Math.min(ko.length, QUEUE_MAX_ITEMS));
+      const queue = readQueue();
+      queue.push({ payload, attempts: 0 });
+      writeQueue(queue.slice(-QUEUE_MAX_ITEMS));
+      log("[Ko] Samtycke koat, poster i ko:", Math.min(queue.length, QUEUE_MAX_ITEMS));
     }
     async function flushQueue() {
-      const ko = readQueue();
-      if (!ko.length) return;
-      const kvar = [];
-      for (const post of ko) {
-        const alder = Date.now() - new Date(post.payload.timestamp).getTime();
-        if (!(alder < QUEUE_MAX_AGE_DAYS * 864e5)) continue;
-        const resultat = await postConsent(post.payload);
-        if (resultat === "ok" || resultat === "avvisad") continue;
-        post.forsok += 1;
-        if (post.forsok < QUEUE_MAX_ATTEMPTS) kvar.push(post);
+      const queue = readQueue();
+      if (!queue.length) return;
+      const remaining = [];
+      for (const entry of queue) {
+        const age = Date.now() - new Date(entry.payload.timestamp).getTime();
+        if (!(age < QUEUE_MAX_AGE_DAYS * 864e5)) continue;
+        const result = await postConsent(entry.payload);
+        if (result === "ok" || result === "avvisad") continue;
+        entry.attempts += 1;
+        if (entry.attempts < QUEUE_MAX_ATTEMPTS) remaining.push(entry);
       }
-      writeQueue(kvar);
-      if (ko.length !== kvar.length) log("[Ko] Skickade", ko.length - kvar.length, "koade samtycken");
+      writeQueue(remaining);
+      if (queue.length !== remaining.length) log("[Ko] Skickade", queue.length - remaining.length, "koade samtycken");
     }
     async function saveConsentAndSend(payload) {
-      const resultat = await postConsent(payload);
-      if (resultat === "fel") queueConsent(payload);
+      const result = await postConsent(payload);
+      if (result === "fel") queueConsent(payload);
     }
     function applyGoogleConsentFromPayload(payload) {
       if (typeof gtag !== "function") {
@@ -2079,39 +2079,39 @@ button:hover {
       notifyConsentChange();
     }
     function notifyConsentChange() {
-      const detalj = { ...currentConsent };
-      for (const lyssnare of consentListeners) {
+      const detail = { ...currentConsent };
+      for (const listener of consentListeners) {
         try {
-          lyssnare(detalj);
-        } catch (fel) {
-          log("[C5] Lyssnare kastade:", fel && fel.message);
+          listener(detail);
+        } catch (error) {
+          log("[C5] Lyssnare kastade:", error && error.message);
         }
       }
       try {
-        document.dispatchEvent(new CustomEvent("seos:consent", { detail: detalj }));
-      } catch (fel) {
-        log("[C5] Kunde inte skicka seos:consent:", fel && fel.message);
+        document.dispatchEvent(new CustomEvent("seos:consent", { detail }));
+      } catch (error) {
+        log("[C5] Kunde inte skicka seos:consent:", error && error.message);
       }
     }
     const seosApi = {
-      hasConsent(kategori) {
-        if (kategori === "necessary") return true;
+      hasConsent(category) {
+        if (category === "necessary") return true;
         if (!currentConsent) return false;
-        return currentConsent[kategori] === true;
+        return currentConsent[category] === true;
       },
       /** Returnerar en funktion som kopplar bort lyssnaren igen. */
-      onConsentChange(lyssnare) {
-        if (typeof lyssnare !== "function") return () => {
+      onConsentChange(listener) {
+        if (typeof listener !== "function") return () => {
         };
-        consentListeners.add(lyssnare);
+        consentListeners.add(listener);
         if (currentConsent) {
           try {
-            lyssnare({ ...currentConsent });
-          } catch (fel) {
-            log("[C5] Lyssnare kastade:", fel && fel.message);
+            listener({ ...currentConsent });
+          } catch (error) {
+            log("[C5] Lyssnare kastade:", error && error.message);
           }
         }
-        return () => consentListeners.delete(lyssnare);
+        return () => consentListeners.delete(listener);
       },
       openSettings: () => openSettings(),
       showPolicy: () => showPolicy()
@@ -2160,44 +2160,44 @@ button:hover {
 }`;
     function ensurePlaceholderCss() {
       if (document.getElementById(PLACEHOLDER_STYLE_ID)) return;
-      const stil = document.createElement("style");
-      stil.id = PLACEHOLDER_STYLE_ID;
-      stil.textContent = placeholderCss;
-      (document.head || document.documentElement).appendChild(stil);
+      const styleEl = document.createElement("style");
+      styleEl.id = PLACEHOLDER_STYLE_ID;
+      styleEl.textContent = placeholderCss;
+      (document.head || document.documentElement).appendChild(styleEl);
     }
-    function sizePlaceholder(ruta, element) {
+    function sizePlaceholder(box, element) {
       const b = parseFloat(element.getAttribute("width"));
       const h = parseFloat(element.getAttribute("height"));
       if (b > 0 && h > 0) {
-        ruta.style.aspectRatio = `${b} / ${h}`;
+        box.style.aspectRatio = `${b} / ${h}`;
         return;
       }
       const rect = element.getBoundingClientRect();
-      if (rect.height > 0) ruta.style.minHeight = `${Math.round(rect.height)}px`;
+      if (rect.height > 0) box.style.minHeight = `${Math.round(rect.height)}px`;
     }
-    function categoryLabel(nyckel) {
-      const texter = kategoriTexter();
-      return texter[nyckel] && texter[nyckel].etikett || nyckel;
+    function categoryLabel(key) {
+      const texts = categoryTexts();
+      return texts[key] && texts[key].label || key;
     }
-    function buildPlaceholder(element, kategori) {
+    function buildPlaceholder(element, category) {
       ensurePlaceholderCss();
-      const ruta = document.createElement("div");
-      ruta.className = PLACEHOLDER_CLASS;
-      ruta.setAttribute("role", "group");
+      const box = document.createElement("div");
+      box.className = PLACEHOLDER_CLASS;
+      box.setAttribute("role", "group");
       const text = document.createElement("p");
-      text.textContent = t.blockedBody.replace("{kategori}", categoryLabel(kategori));
-      const knapp = document.createElement("button");
-      knapp.type = "button";
-      knapp.textContent = t.blockedButton;
-      knapp.addEventListener("click", () => openSettings());
-      ruta.append(text, knapp);
-      sizePlaceholder(ruta, element);
-      return ruta;
+      text.textContent = t.blockedBody.replace("{kategori}", categoryLabel(category));
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = t.blockedButton;
+      button.addEventListener("click", () => openSettings());
+      box.append(text, button);
+      sizePlaceholder(box, element);
+      return box;
     }
     function warnAboutMarkup() {
       for (const element of document.querySelectorAll("script[data-seos-consent]")) {
-        const typ = (element.getAttribute("type") || "").toLowerCase();
-        if (typ !== "text/plain") {
+        const type = (element.getAttribute("type") || "").toLowerCase();
+        if (type !== "text/plain") {
           console.warn(
             '[SEOS] This script has data-seos-consent but type="' + (element.getAttribute("type") || "") + '". It ran immediately and was NOT held back. Add type="text/plain".',
             element
@@ -2219,50 +2219,50 @@ button:hover {
         }
       }
       for (const element of document.querySelectorAll("[data-seos-consent]")) {
-        const nyckel = element.getAttribute("data-seos-consent");
-        if (CATEGORY_KEYS.indexOf(nyckel) === -1) {
+        const key = element.getAttribute("data-seos-consent");
+        if (CATEGORY_KEYS.indexOf(key) === -1) {
           console.warn(
-            '[SEOS] Unknown consent category "' + nyckel + '". Known categories: ' + CATEGORY_KEYS.join(", ") + ". This element will never be released.",
+            '[SEOS] Unknown consent category "' + key + '". Known categories: ' + CATEGORY_KEYS.join(", ") + ". This element will never be released.",
             element
           );
         }
       }
     }
     function embedCategory(element) {
-      const nyckel = element.getAttribute("data-seos-consent");
-      if (CATEGORY_KEYS.indexOf(nyckel) === -1) return null;
-      return nyckel;
+      const key = element.getAttribute("data-seos-consent");
+      if (CATEGORY_KEYS.indexOf(key) === -1) return null;
+      return key;
     }
-    function isGranted(kategori) {
-      return kategori !== null && seosApi.hasConsent(kategori);
+    function isGranted(category) {
+      return category !== null && seosApi.hasConsent(category);
     }
-    function releaseScript(gammalt) {
-      const nytt = document.createElement("script");
-      for (const attribut of gammalt.attributes) {
-        if (attribut.name === "type") continue;
-        if (attribut.name.indexOf("data-seos-") === 0) continue;
-        nytt.setAttribute(attribut.name, attribut.value);
+    function releaseScript(oldScript) {
+      const newScript = document.createElement("script");
+      for (const attr of oldScript.attributes) {
+        if (attr.name === "type") continue;
+        if (attr.name.indexOf("data-seos-") === 0) continue;
+        newScript.setAttribute(attr.name, attr.value);
       }
-      if (gammalt.textContent) nytt.textContent = gammalt.textContent;
-      gammalt.parentNode.insertBefore(nytt, gammalt);
-      gammalt.remove();
+      if (oldScript.textContent) newScript.textContent = oldScript.textContent;
+      oldScript.parentNode.insertBefore(newScript, oldScript);
+      oldScript.remove();
     }
     function releaseIframe(element) {
-      const adress = element.getAttribute("data-seos-src");
-      if (!adress) return;
-      element.setAttribute("src", adress);
+      const url = element.getAttribute("data-seos-src");
+      if (!url) return;
+      element.setAttribute("src", url);
       element.removeAttribute("data-seos-src");
       element.style.removeProperty("display");
-      const ruta = element.previousElementSibling;
-      if (ruta && ruta.classList.contains(PLACEHOLDER_CLASS)) ruta.remove();
+      const box = element.previousElementSibling;
+      if (box && box.classList.contains(PLACEHOLDER_CLASS)) box.remove();
     }
     function holdIframe(element) {
       if (element.previousElementSibling && element.previousElementSibling.classList.contains(PLACEHOLDER_CLASS)) {
         return;
       }
-      const kategori = element.getAttribute("data-seos-consent");
-      const ruta = buildPlaceholder(element, kategori);
-      element.parentNode.insertBefore(ruta, element);
+      const category = element.getAttribute("data-seos-consent");
+      const box = buildPlaceholder(element, category);
+      element.parentNode.insertBefore(box, element);
       element.style.display = "none";
     }
     function applyConsentToEmbeds() {
@@ -2322,9 +2322,9 @@ button:hover {
           element.setAttribute("aria-checked", isActive ? "true" : "false");
         }
       };
-      for (const kategori of toggleCategories()) {
-        if (kategori.is_required) continue;
-        applyToggleState(`${kategori.key}-toggle`, choices[kategori.key] === true);
+      for (const category of toggleCategories()) {
+        if (category.is_required) continue;
+        applyToggleState(`${category.key}-toggle`, choices[category.key] === true);
       }
       showSettingsModal();
       setTimeout(() => {
@@ -2349,14 +2349,14 @@ button:hover {
     }
     function saveSettings() {
       const clientId = getOrCreateClientId();
-      const val = { analytics: false, marketing: false, functional: false };
-      for (const kategori of toggleCategories()) {
-        if (kategori.is_required) continue;
-        val[kategori.key] = el(`${kategori.key}-toggle`)?.classList.contains("active") || false;
+      const choice = { analytics: false, marketing: false, functional: false };
+      for (const category of toggleCategories()) {
+        if (category.is_required) continue;
+        choice[category.key] = el(`${category.key}-toggle`)?.classList.contains("active") || false;
       }
-      const analytics = val.analytics;
-      const marketing = val.marketing;
-      const functional = val.functional;
+      const analytics = choice.analytics;
+      const marketing = choice.marketing;
+      const functional = choice.functional;
       const payload = {
         necessary: true,
         analytics,
@@ -2396,8 +2396,8 @@ button:hover {
     }
     function toggleCookie(element) {
       if (!element) return;
-      const pa = element.classList.toggle("active");
-      element.setAttribute("aria-checked", pa ? "true" : "false");
+      const isOn = element.classList.toggle("active");
+      element.setAttribute("aria-checked", isOn ? "true" : "false");
     }
     async function showPolicy() {
       await ensureConfig();

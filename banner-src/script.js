@@ -252,35 +252,35 @@ import bannerCss from './style.css';
   }));
 
   /** Slapper bara igenom kanda kategorier, i bannerns egen ordning. */
-  function sanitizeCategories(lista) {
-    if (!Array.isArray(lista)) return [];
+  function sanitizeCategories(list) {
+    if (!Array.isArray(list)) return [];
 
-    const funna = new Map();
-    for (const rad of lista) {
-      if (!rad || typeof rad !== 'object') continue;
-      if (typeof rad.key !== 'string') continue;
-      if (CATEGORY_KEYS.indexOf(rad.key) === -1) continue;
-      funna.set(rad.key, {
-        is_required: rad.is_required === true,
+    const found = new Map();
+    for (const row of list) {
+      if (!row || typeof row !== 'object') continue;
+      if (typeof row.key !== 'string') continue;
+      if (CATEGORY_KEYS.indexOf(row.key) === -1) continue;
+      found.set(row.key, {
+        is_required: row.is_required === true,
         // Bara ett uttryckligt 'notice' ger besked. Allt annat - okant varde,
         // saknat falt, ett API som annu inte skickar det - blir reglage.
         // Det sakra fallet ar att FRAGA, inte att pasta nagot om sajten.
-        visibility: rad.visibility === 'notice' ? 'notice' : 'toggle',
+        visibility: row.visibility === 'notice' ? 'notice' : 'toggle',
       });
     }
 
-    if (!funna.size) return [];
+    if (!found.size) return [];
 
     // NODVANDIGA AR ALLTID MED, ALLTID OBLIGATORISKA OCH ALLTID ETT REGLAGE.
     // Samma invariant som i API:t, och av samma skal: payloaden skickar alltid
     // necessary: true, sa bade ett avstangbart reglage och ett besked om
     // motsatsen hade ljugit for besokaren.
-    funna.set('necessary', { is_required: true, visibility: 'toggle' });
+    found.set('necessary', { is_required: true, visibility: 'toggle' });
 
-    return CATEGORY_KEYS.filter((key) => funna.has(key)).map((key) => ({
+    return CATEGORY_KEYS.filter((key) => found.has(key)).map((key) => ({
       key,
-      is_required: funna.get(key).is_required,
-      visibility: funna.get(key).visibility,
+      is_required: found.get(key).is_required,
+      visibility: found.get(key).visibility,
     }));
   }
 
@@ -311,7 +311,7 @@ import bannerCss from './style.css';
    * andra.
    */
   function toggleCategories() {
-    return activeCategories().filter((kategori) => kategori.visibility !== 'notice');
+    return activeCategories().filter((category) => category.visibility !== 'notice');
   }
 
   //========================================================================
@@ -345,12 +345,12 @@ import bannerCss from './style.css';
   const MAX_TEXT_LENGTH = 300;
   const UNSAFE_TEXT = /[<>]/;
 
-  function isValidText(varde) {
+  function isValidText(value) {
     return (
-      typeof varde === 'string' &&
-      varde.trim().length > 0 &&
-      varde.length <= MAX_TEXT_LENGTH &&
-      !UNSAFE_TEXT.test(varde)
+      typeof value === 'string' &&
+      value.trim().length > 0 &&
+      value.length <= MAX_TEXT_LENGTH &&
+      !UNSAFE_TEXT.test(value)
     );
   }
 
@@ -358,39 +358,39 @@ import bannerCss from './style.css';
   function sanitizeTexts(texts) {
     if (!texts || typeof texts !== 'object' || Array.isArray(texts)) return {};
 
-    const rensad = {};
+    const cleaned = {};
 
-    for (const sprak in texts) {
-      if (!TEXT_LANGUAGES.has(sprak)) continue;
-      const kategorier = texts[sprak];
-      if (!kategorier || typeof kategorier !== 'object' || Array.isArray(kategorier)) continue;
+    for (const lang in texts) {
+      if (!TEXT_LANGUAGES.has(lang)) continue;
+      const categories = texts[lang];
+      if (!categories || typeof categories !== 'object' || Array.isArray(categories)) continue;
 
-      const perKategori = {};
+      const perCategory = {};
 
-      for (const kategori in kategorier) {
-        if (CATEGORY_KEYS.indexOf(kategori) === -1) continue;
-        const falt = kategorier[kategori];
-        if (!falt || typeof falt !== 'object' || Array.isArray(falt)) continue;
+      for (const category in categories) {
+        if (CATEGORY_KEYS.indexOf(category) === -1) continue;
+        const field = categories[category];
+        if (!field || typeof field !== 'object' || Array.isArray(field)) continue;
 
-        const perFalt = {};
+        const perField = {};
 
-        for (const namn in falt) {
-          if (!TEXT_FIELDS.has(namn)) continue;
+        for (const name in field) {
+          if (!TEXT_FIELDS.has(name)) continue;
           // NÖDVÄNDIGA KAN ALDRIG BLI ETT BESKED. Samma invariant som i
           // sanitizeCategories, och av samma skäl: bannern sätter sin egen
           // samtyckescookie, så det finns inget läge där beskedet vore sant.
-          if (kategori === 'necessary' && namn === 'notice') continue;
-          if (!isValidText(falt[namn])) continue;
-          perFalt[namn] = falt[namn];
+          if (category === 'necessary' && name === 'notice') continue;
+          if (!isValidText(field[name])) continue;
+          perField[name] = field[name];
         }
 
-        if (Object.keys(perFalt).length > 0) perKategori[kategori] = perFalt;
+        if (Object.keys(perField).length > 0) perCategory[category] = perField;
       }
 
-      if (Object.keys(perKategori).length > 0) rensad[sprak] = perKategori;
+      if (Object.keys(perCategory).length > 0) cleaned[lang] = perCategory;
     }
 
-    return rensad;
+    return cleaned;
   }
 
   /** Skriver de hamtade vardena som CSS-variabler pa vardelementet. */
@@ -399,8 +399,8 @@ import bannerCss from './style.css';
     const host = document.getElementById(HOST_ID);
     if (!host) return;
 
-    for (const nyckel in loadedDesign) {
-      host.style.setProperty('--' + nyckel, loadedDesign[nyckel]);
+    for (const key in loadedDesign) {
+      host.style.setProperty('--' + key, loadedDesign[key]);
     }
   }
 
@@ -426,37 +426,37 @@ import bannerCss from './style.css';
   }
 
   // Tomt svar. Bannern kor sina standardvarden och sina fyra kategorier.
-  const TOM_CONFIG = { design: {}, categories: [], texts: {} };
+  const EMPTY_CONFIG = { design: {}, categories: [], texts: {} };
 
   async function fetchConfig() {
     // Utan site key finns inget att sla upp.
-    if (!SITE_KEY) return TOM_CONFIG;
+    if (!SITE_KEY) return EMPTY_CONFIG;
 
-    const styrning = new AbortController();
-    const klocka = setTimeout(() => styrning.abort(), CONFIG_TIMEOUT_MS);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), CONFIG_TIMEOUT_MS);
 
     try {
       // Tidsstampeln gor adressen unik, sa CDN:et inte kan svara ur cachen.
       // API:t ser samma parameter och hoppar over sin egen minnescache.
-      const adress =
+      const url =
         `${API_BASE_URL}/config/${encodeURIComponent(SITE_KEY)}` +
         (isFreshMode() ? `?farsk=${Date.now()}` : '');
 
-      const svar = await fetch(adress, { signal: styrning.signal });
-      if (!svar.ok) return TOM_CONFIG;
+      const response = await fetch(url, { signal: controller.signal });
+      if (!response.ok) return EMPTY_CONFIG;
 
-      const data = await svar.json();
-      if (!data || typeof data !== 'object') return TOM_CONFIG;
+      const data = await response.json();
+      if (!data || typeof data !== 'object') return EMPTY_CONFIG;
 
       const design = data.design;
-      const rensad = {};
+      const cleaned = {};
       if (design && typeof design === 'object') {
-        for (const nyckel in design) {
-          const varde = design[nyckel];
-          if (!DESIGN_VARIABLES.has(nyckel)) continue;
-          if (typeof varde !== 'string' || !varde || varde.length > 200) continue;
-          if (UNSAFE_VALUE.test(varde)) continue;
-          rensad[nyckel] = varde;
+        for (const key in design) {
+          const value = design[key];
+          if (!DESIGN_VARIABLES.has(key)) continue;
+          if (typeof value !== 'string' || !value || value.length > 200) continue;
+          if (UNSAFE_VALUE.test(value)) continue;
+          cleaned[key] = value;
         }
       }
 
@@ -464,18 +464,18 @@ import bannerCss from './style.css';
       // tom, och bannern faller tillbaka pa sina fyra. Det ar det som gor att
       // bannern kan rullas ut fore API:t utan att nagot andras.
       return {
-        design: rensad,
+        design: cleaned,
         categories: sanitizeCategories(data.categories),
         texts: sanitizeTexts(data.texts),
       };
-    } catch (fel) {
+    } catch (error) {
       // Avbrott, natverksfel eller trasigt svar: bannern ska visa sig anda.
       // En banner som uteblir for att configen inte gick att hamta vore ett
       // mycket varre fel an en banner i fel farger.
-      log('[Config] Kunde inte hamta config:', fel && fel.message);
-      return TOM_CONFIG;
+      log('[Config] Kunde inte hamta config:', error && error.message);
+      return EMPTY_CONFIG;
     } finally {
-      clearTimeout(klocka);
+      clearTimeout(timer);
     }
   }
 
@@ -509,11 +509,11 @@ import bannerCss from './style.css';
    * fordroja injiceringen av bannerns HTML.
    */
   function applyCategories() {
-    const behallare = el('settings-container');
-    if (!behallare) return;
+    const container = el('settings-container');
+    if (!container) return;
     // textContent = '' tar bort barnen utan att nagon HTML tolkas.
-    behallare.textContent = '';
-    renderCategoryCards(behallare);
+    container.textContent = '';
+    renderCategoryCards(container);
   }
 
   // HAMTAS BARA NAR DEN BEHOVS.
@@ -570,35 +570,36 @@ import bannerCss from './style.css';
   // Databasen far skriva över varje enskild rad, men bara skriva över: saknas
   // värdet används språktabellens. Det är därför en sajt kan byta ordalydelse
   // på en enda rubrik utan att behöva fylla i allt annat.
-  function kategoriTexter() {
-    const egna = (loadedTexts && loadedTexts[textLang]) || {};
+  function categoryTexts() {
+    const own = (loadedTexts && loadedTexts[textLang]) || {};
 
-    // falt ar databasens namn (label/description/notice), standard ar
-    // spraktabellens varde.
-    const valj = (nyckel, falt, standard) => {
-      const rad = egna[nyckel];
-      return rad && typeof rad[falt] === 'string' ? rad[falt] : standard;
+    // field ar databasens namn (label/description/notice), fallback ar
+    // spraktabellens varde. Falten heter numera likadant i bada andar, sa det
+    // finns inget oversattningssteg dar ett fel kan smyga sig in.
+    const pick = (key, field, fallback) => {
+      const row = own[key];
+      return row && typeof row[field] === 'string' ? row[field] : fallback;
     };
 
     return {
       necessary: {
-        etikett: valj('necessary', 'label', t.necessaryLabel),
-        text: valj('necessary', 'description', t.necessaryDesc),
+        label: pick('necessary', 'label', t.necessaryLabel),
+        description: pick('necessary', 'description', t.necessaryDesc),
       },
       analytics: {
-        etikett: valj('analytics', 'label', t.analyticsLabel),
-        text: valj('analytics', 'description', t.analyticsDesc),
-        saknas: valj('analytics', 'notice', t.analyticsNone),
+        label: pick('analytics', 'label', t.analyticsLabel),
+        description: pick('analytics', 'description', t.analyticsDesc),
+        notice: pick('analytics', 'notice', t.analyticsNone),
       },
       functional: {
-        etikett: valj('functional', 'label', t.functionalLabel),
-        text: valj('functional', 'description', t.functionalDesc),
-        saknas: valj('functional', 'notice', t.functionalNone),
+        label: pick('functional', 'label', t.functionalLabel),
+        description: pick('functional', 'description', t.functionalDesc),
+        notice: pick('functional', 'notice', t.functionalNone),
       },
       marketing: {
-        etikett: valj('marketing', 'label', t.marketingLabel),
-        text: valj('marketing', 'description', t.marketingDesc),
-        saknas: valj('marketing', 'notice', t.marketingNone),
+        label: pick('marketing', 'label', t.marketingLabel),
+        description: pick('marketing', 'description', t.marketingDesc),
+        notice: pick('marketing', 'notice', t.marketingNone),
       },
     };
   }
@@ -615,76 +616,78 @@ import bannerCss from './style.css';
    * Med textContent finns det halet inte. Det ar inte skyddat mot, det finns
    * inte. SKRIV DARFOR ALDRIG OM DEN HAR FUNKTIONEN TILL innerHTML.
    */
-  function renderCategoryCards(behallare) {
-    const texter = kategoriTexter();
+  function renderCategoryCards(container) {
+    const texts = categoryTexts();
 
-    for (const kategori of activeCategories()) {
-      const text = texter[kategori.key];
-      if (!text) continue;
-      if (kategori.visibility === 'notice' && !text.saknas) continue;
+    for (const category of activeCategories()) {
+      const copy = texts[category.key];
+      if (!copy) continue;
+      if (category.visibility === 'notice' && !copy.notice) continue;
 
-      const besked = kategori.visibility === 'notice';
+      const isNotice = category.visibility === 'notice';
 
-      const kort = document.createElement('div');
-      kort.className = besked ? 'cookie-category-card category-notice' : 'cookie-category-card';
+      const card = document.createElement('div');
+      card.className = isNotice ? 'cookie-category-card category-notice' : 'cookie-category-card';
 
-      const omslag = document.createElement('div');
-      omslag.className = 'category-text-wrapper';
+      const wrapper = document.createElement('div');
+      wrapper.className = 'category-text-wrapper';
 
-      const rubrik = document.createElement('h5');
-      rubrik.id = `etikett-${kategori.key}`;
-      rubrik.textContent = text.etikett;
+      const heading = document.createElement('h5');
+      heading.id = `etikett-${category.key}`;
+      heading.textContent = copy.label;
 
-      const brodtext = document.createElement('p');
-      brodtext.id = `text-${kategori.key}`;
-      brodtext.textContent = besked ? text.saknas : text.text;
+      const bodyText = document.createElement('p');
+      bodyText.id = `text-${category.key}`;
+      bodyText.textContent = isNotice ? copy.notice : copy.description;
 
-      omslag.append(rubrik, brodtext);
-      kort.appendChild(omslag);
+      wrapper.append(heading, bodyText);
+      card.appendChild(wrapper);
 
       // BESKED: kort utan reglage. Ingen data-handling, sa klick pa kortet
       // gor ingenting - det finns inget att vaxla. Ingen knapp betyder ocksa
       // att tangentbordsnavigeringen hoppar over det, vilket ar ratt: det ar
       // information, inte ett val.
-      if (besked) {
-        behallare.appendChild(kort);
+      if (isNotice) {
+        container.appendChild(card);
         continue;
       }
 
-      const knapp = document.createElement('button');
-      knapp.type = 'button';
-      knapp.setAttribute('role', 'switch');
-      knapp.setAttribute('aria-labelledby', rubrik.id);
-      knapp.setAttribute('aria-describedby', brodtext.id);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.setAttribute('role', 'switch');
+      button.setAttribute('aria-labelledby', heading.id);
+      button.setAttribute('aria-describedby', bodyText.id);
 
-      if (kategori.is_required) {
+      if (category.is_required) {
         // Markets text kommer alltid fran spraktabellen, aldrig fran
         // databasen: "KRAVS" ar ett pastaende om hur bannern fungerar, inte
         // om sajten.
-        const marke = document.createElement('span');
-        marke.className = 'badge';
-        marke.textContent = t.requiredBadge;
-        rubrik.append(' ', marke);
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        badge.textContent = t.requiredBadge;
+        heading.append(' ', badge);
 
-        knapp.className = 'toggle-switch always-active';
-        knapp.setAttribute('aria-checked', 'true');
-        knapp.disabled = true;
+        button.className = 'toggle-switch always-active';
+        button.setAttribute('aria-checked', 'true');
+        button.disabled = true;
       } else {
-        const reglage = `${kategori.key}-toggle`;
-        kort.dataset.handling = 'vaxla';
-        kort.dataset.reglage = reglage;
+        const toggleId = `${category.key}-toggle`;
+        card.dataset.handling = 'vaxla';
+        // ⚠️ dataset.reglage ger attributet data-reglage. Attributnamnen byts
+        // i commit 3, inte har - variabeln heter toggleId, attributet inte.
+        card.dataset.reglage = toggleId;
 
-        knapp.className = 'toggle-switch';
-        knapp.id = reglage;
-        knapp.setAttribute('aria-checked', 'false');
+        button.className = 'toggle-switch';
+        button.id = toggleId;
+        button.setAttribute('aria-checked', 'false');
       }
 
       const slider = document.createElement('span');
       slider.className = 'toggle-slider';
-      knapp.appendChild(slider);
+      button.appendChild(slider);
 
-      kort.appendChild(knapp);
-      behallare.appendChild(kort);
+      card.appendChild(button);
+      container.appendChild(card);
     }
   }
 
@@ -792,9 +795,9 @@ import bannerCss from './style.css';
     shadow.appendChild(style);
 
     // Ett template i stallet for shadow.innerHTML: annars skrivs stilmallen over.
-    const mall = document.createElement('template');
-    mall.innerHTML = bannerHTML;
-    shadow.appendChild(mall.content);
+    const template = document.createElement('template');
+    template.innerHTML = bannerHTML;
+    shadow.appendChild(template.content);
 
     // Korten ritas har i stallet for i mallen: de byggs som element, inte som
     // en strang, sa de gar inte att interpolera in. Configen har oftast redan
@@ -810,7 +813,7 @@ import bannerCss from './style.css';
   // En enda lyssnare pa skuggroten i stallet for atta inline-onclick. Klick
   // bubblar upp hit, och data-handling avgor vad som ska kora.
   function bindEvents() {
-    const handlingar = {
+    const actions = {
       visaPolicy: showPolicy,
       oppnaInstallningar: openSettings,
       endastNodvandiga: acceptEssential,
@@ -821,13 +824,13 @@ import bannerCss from './style.css';
       vaxla: (element) => toggleCookie(el(element.dataset.reglage)),
     };
 
-    shadow.addEventListener('click', (handelse) => {
-      const traff = handelse.target.closest('[data-handling]');
-      if (!traff) return;
-      const kor = handlingar[traff.dataset.handling];
-      if (!kor) return;
-      handelse.preventDefault();
-      kor(traff);
+    shadow.addEventListener('click', (event) => {
+      const match = event.target.closest('[data-handling]');
+      if (!match) return;
+      const run = actions[match.dataset.handling];
+      if (!run) return;
+      event.preventDefault();
+      run(match);
     });
   }
 
@@ -909,10 +912,10 @@ import bannerCss from './style.css';
   // Rutorna ar INTE modala - sidan bakom gar fortfarande att anvanda. Darfor
   // fangas fokus inte in, och aria-modal satts inte. En cookiebanner som lasar
   // hela sidan ar dessutom tveksam ur samtyckessynpunkt.
-  let fokusFore = null;
+  let focusBefore = null;
 
-  function moveFocusTo(ruta) {
-    if (!ruta) return;
+  function moveFocusTo(box) {
+    if (!box) return;
     // Fokus gar till RUTAN, inte till forsta knappen. Da laser skarmlasaren upp
     // rubriken (via aria-labelledby) i stallet for att kasta in anvandaren mitt i
     // en knapprad. Rutorna har darfor tabindex="-1".
@@ -920,17 +923,17 @@ import bannerCss from './style.css';
     // Forsta forsoket tog forsta <button> - men det ar den inaktiverade
     // nodvandig-knappen, och inaktiverade element kan inte ta emot fokus. Fokus
     // hamnade darfor ingenstans alls.
-    ruta.focus();
+    box.focus();
   }
 
   function rememberFocus() {
-    const aktiv = shadow && shadow.activeElement ? shadow.activeElement : document.activeElement;
-    if (aktiv) fokusFore = aktiv;
+    const active = shadow && shadow.activeElement ? shadow.activeElement : document.activeElement;
+    if (active) focusBefore = active;
   }
 
   function restoreFocus() {
-    if (fokusFore && typeof fokusFore.focus === 'function') fokusFore.focus();
-    fokusFore = null;
+    if (focusBefore && typeof focusBefore.focus === 'function') focusBefore.focus();
+    focusBefore = null;
   }
 
   // Escape stanger den oppna rutan. Forvantat beteende for allt som ser ut som
@@ -965,15 +968,15 @@ import bannerCss from './style.css';
   //
   // Losningen ar oberoende av vilket bibliotek kunden anvander - vi ror
   // aldrig deras kod, bara var egen handelse.
-  function scrollableBox(handelse) {
-    const vag = typeof handelse.composedPath === 'function' ? handelse.composedPath() : [];
-    for (const nod of vag) {
+  function scrollableBox(event) {
+    const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+    for (const node of path) {
       // Stanna vid skuggans kant: utanfor den ar det kundens sida.
-      if (nod === shadow || nod === shadow.host) break;
-      if (!nod || nod.nodeType !== 1) continue;
-      const stil = window.getComputedStyle(nod);
-      const rullbar = stil.overflowY === 'auto' || stil.overflowY === 'scroll';
-      if (rullbar && nod.scrollHeight > nod.clientHeight + 1) return nod;
+      if (node === shadow || node === shadow.host) break;
+      if (!node || node.nodeType !== 1) continue;
+      const styleEl = window.getComputedStyle(node);
+      const scrollable = styleEl.overflowY === 'auto' || styleEl.overflowY === 'scroll';
+      if (scrollable && node.scrollHeight > node.clientHeight + 1) return node;
     }
     return null;
   }
@@ -982,32 +985,32 @@ import bannerCss from './style.css';
     if (!shadow) return;
     shadow.addEventListener(
       'wheel',
-      (handelse) => {
-        const ruta = scrollableBox(handelse);
-        if (!ruta) return;
+      (event) => {
+        const box = scrollableBox(event);
+        if (!box) return;
 
-        const nedat = handelse.deltaY > 0;
-        const kanRullaVidare = nedat
-          ? ruta.scrollTop < ruta.scrollHeight - ruta.clientHeight - 1
-          : ruta.scrollTop > 0;
+        const nedat = event.deltaY > 0;
+        const canScrollFurther = nedat
+          ? box.scrollTop < box.scrollHeight - box.clientHeight - 1
+          : box.scrollTop > 0;
 
         // Behall handelsen bara nar rutan har nagonstans att ta vagen.
-        if (kanRullaVidare) handelse.stopPropagation();
+        if (canScrollFurther) event.stopPropagation();
       },
       true
     );
   }
 
   function bindKeyboard() {
-    shadow.addEventListener('keydown', (handelse) => {
-      if (handelse.key !== 'Escape') return;
-      const installningar = el(SETTINGS_ID);
+    shadow.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      const settings = el(SETTINGS_ID);
       const policy = el(POLICY_ID);
       if (policy && policy.style.display !== 'none') {
-        handelse.preventDefault();
+        event.preventDefault();
         closePolicy();
-      } else if (installningar && installningar.style.display !== 'none') {
-        handelse.preventDefault();
+      } else if (settings && settings.style.display !== 'none') {
+        event.preventDefault();
         backToBanner();
       }
     });
@@ -1027,17 +1030,17 @@ import bannerCss from './style.css';
   function showSettingsModal() {
     rememberFocus();
     hideAllBanners();
-    const ruta = el(SETTINGS_ID);
-    ruta.style.display = 'flex';
-    moveFocusTo(ruta);
+    const box = el(SETTINGS_ID);
+    box.style.display = 'flex';
+    moveFocusTo(box);
   }
 
   function showPolicyModal() {
     rememberFocus();
     hideAllBanners();
-    const ruta = el(POLICY_ID);
-    ruta.style.display = 'flex';
-    moveFocusTo(ruta);
+    const box = el(POLICY_ID);
+    box.style.display = 'flex';
+    moveFocusTo(box);
   }
 
   //========================================================================
@@ -1056,14 +1059,14 @@ import bannerCss from './style.css';
     // Payloadens FORM andras inte: fyra fasta falt, precis som forut. Bara
     // vardena foljer vad som visades. Darfor rors varken validatorn,
     // consent.ts eller bevisloggens struktur.
-    const visade = {};
-    for (const kategori of toggleCategories()) visade[kategori.key] = true;
+    const seen = {};
+    for (const category of toggleCategories()) seen[category.key] = true;
 
     return {
       necessary: true,
-      analytics: visade.analytics === true,
-      marketing: visade.marketing === true,
-      functional: visade.functional === true,
+      analytics: seen.analytics === true,
+      marketing: seen.marketing === true,
+      functional: seen.functional === true,
       client_id: clientId,
       site_key: SITE_KEY,
       domain: window.location.hostname,
@@ -1114,9 +1117,9 @@ import bannerCss from './style.css';
 
   function readQueue() {
     try {
-      const rad = window.localStorage.getItem(QUEUE_KEY);
-      const ko = rad ? JSON.parse(rad) : [];
-      return Array.isArray(ko) ? ko : [];
+      const row = window.localStorage.getItem(QUEUE_KEY);
+      const queue = row ? JSON.parse(row) : [];
+      return Array.isArray(queue) ? queue : [];
     } catch (e) {
       // localStorage kan vara avstangt eller fullt. Da far kon inte finnas -
       // men samtycket ska anda ga igenom.
@@ -1124,9 +1127,9 @@ import bannerCss from './style.css';
     }
   }
 
-  function writeQueue(ko) {
+  function writeQueue(queue) {
     try {
-      if (ko.length) window.localStorage.setItem(QUEUE_KEY, JSON.stringify(ko));
+      if (queue.length) window.localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
       else window.localStorage.removeItem(QUEUE_KEY);
     } catch (e) {
       /* tyst: en ko som inte kan sparas ar battre an ett kraschat samtycke */
@@ -1136,26 +1139,26 @@ import bannerCss from './style.css';
   /** Returnerar 'ok' | 'avvisad' (meningslost att forsoka igen) | 'fel'. */
   async function postConsent(payload) {
     try {
-      const svar = await fetch(`${API_BASE_URL}/consent`, {
+      const response = await fetch(`${API_BASE_URL}/consent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      if (svar.ok) {
+      if (response.ok) {
         log('[Backend] Consent recorded successfully');
         return 'ok';
       }
 
       // 4xx betyder att API:t forstod oss och sa nej - fel site key, fel origin,
       // ogiltig payload. Att skicka om det tusen ganger ger samma svar. Slang.
-      if (svar.status >= 400 && svar.status < 500) {
-        const detaljer = await svar.json().catch(() => ({}));
-        console.error('[Backend] Consent avvisad, status:', svar.status, detaljer);
+      if (response.status >= 400 && response.status < 500) {
+        const details = await response.json().catch(() => ({}));
+        console.error('[Backend] Consent avvisad, status:', response.status, details);
         return 'avvisad';
       }
 
-      console.error('[Backend] Consent POST failed, status:', svar.status);
+      console.error('[Backend] Consent POST failed, status:', response.status);
       return 'fel';
     } catch (error) {
       console.error('[Backend] Network error - could not reach server:', error);
@@ -1164,41 +1167,41 @@ import bannerCss from './style.css';
   }
 
   function queueConsent(payload) {
-    const ko = readQueue();
-    ko.push({ payload, forsok: 0 });
+    const queue = readQueue();
+    queue.push({ payload, attempts: 0 });
     // Behall de senaste. En besokare som surfar offline lange ska inte kunna
     // fylla sitt eget lagringsutrymme.
-    writeQueue(ko.slice(-QUEUE_MAX_ITEMS));
-    log('[Ko] Samtycke koat, poster i ko:', Math.min(ko.length, QUEUE_MAX_ITEMS));
+    writeQueue(queue.slice(-QUEUE_MAX_ITEMS));
+    log('[Ko] Samtycke koat, poster i ko:', Math.min(queue.length, QUEUE_MAX_ITEMS));
   }
 
   // Toms vid varje sidladdning. Kors efter att bannern ritats sa den aldrig
   // fordrojer det besokaren ser.
   async function flushQueue() {
-    const ko = readQueue();
-    if (!ko.length) return;
+    const queue = readQueue();
+    if (!queue.length) return;
 
-    const kvar = [];
-    for (const post of ko) {
+    const remaining = [];
+    for (const entry of queue) {
       // Ett samtycke aldre an cookiens livslangd ar inte langre aktuellt -
       // besokaren har for lange sedan fatt fragan igen.
-      const alder = Date.now() - new Date(post.payload.timestamp).getTime();
-      if (!(alder < QUEUE_MAX_AGE_DAYS * 86400000)) continue;
+      const age = Date.now() - new Date(entry.payload.timestamp).getTime();
+      if (!(age < QUEUE_MAX_AGE_DAYS * 86400000)) continue;
 
-      const resultat = await postConsent(post.payload);
-      if (resultat === 'ok' || resultat === 'avvisad') continue;
+      const result = await postConsent(entry.payload);
+      if (result === 'ok' || result === 'avvisad') continue;
 
-      post.forsok += 1;
-      if (post.forsok < QUEUE_MAX_ATTEMPTS) kvar.push(post);
+      entry.attempts += 1;
+      if (entry.attempts < QUEUE_MAX_ATTEMPTS) remaining.push(entry);
     }
 
-    writeQueue(kvar);
-    if (ko.length !== kvar.length) log('[Ko] Skickade', ko.length - kvar.length, 'koade samtycken');
+    writeQueue(remaining);
+    if (queue.length !== remaining.length) log('[Ko] Skickade', queue.length - remaining.length, 'koade samtycken');
   }
 
   async function saveConsentAndSend(payload) {
-    const resultat = await postConsent(payload);
-    if (resultat === 'fel') queueConsent(payload);
+    const result = await postConsent(payload);
+    if (result === 'fel') queueConsent(payload);
   }
 
   //========================================================================
@@ -1375,22 +1378,22 @@ import bannerCss from './style.css';
   }
 
   function notifyConsentChange() {
-    const detalj = { ...currentConsent };
+    const detail = { ...currentConsent };
 
-    for (const lyssnare of consentListeners) {
+    for (const listener of consentListeners) {
       // En trasig lyssnare hos kunden far inte stoppa de ovriga, och inte
       // heller resten av samtyckesvagen.
       try {
-        lyssnare(detalj);
-      } catch (fel) {
-        log('[C5] Lyssnare kastade:', fel && fel.message);
+        listener(detail);
+      } catch (error) {
+        log('[C5] Lyssnare kastade:', error && error.message);
       }
     }
 
     try {
-      document.dispatchEvent(new CustomEvent('seos:consent', { detail: detalj }));
-    } catch (fel) {
-      log('[C5] Kunde inte skicka seos:consent:', fel && fel.message);
+      document.dispatchEvent(new CustomEvent('seos:consent', { detail: detail }));
+    } catch (error) {
+      log('[C5] Kunde inte skicka seos:consent:', error && error.message);
     }
   }
 
@@ -1413,26 +1416,26 @@ import bannerCss from './style.css';
    * svaret kommer ar det onConsentChange() som galler.
    */
   const seosApi = {
-    hasConsent(kategori) {
-      if (kategori === 'necessary') return true;
+    hasConsent(category) {
+      if (category === 'necessary') return true;
       if (!currentConsent) return false;
-      return currentConsent[kategori] === true;
+      return currentConsent[category] === true;
     },
 
     /** Returnerar en funktion som kopplar bort lyssnaren igen. */
-    onConsentChange(lyssnare) {
-      if (typeof lyssnare !== 'function') return () => {};
-      consentListeners.add(lyssnare);
+    onConsentChange(listener) {
+      if (typeof listener !== 'function') return () => {};
+      consentListeners.add(listener);
       // Har svaret redan kommit far lyssnaren det direkt. Utan det hade en
       // sajt som kopplar sig sent aldrig fatt veta nagot.
       if (currentConsent) {
         try {
-          lyssnare({ ...currentConsent });
-        } catch (fel) {
-          log('[C5] Lyssnare kastade:', fel && fel.message);
+          listener({ ...currentConsent });
+        } catch (error) {
+          log('[C5] Lyssnare kastade:', error && error.message);
         }
       }
-      return () => consentListeners.delete(lyssnare);
+      return () => consentListeners.delete(listener);
     },
 
     openSettings: () => openSettings(),
@@ -1499,10 +1502,10 @@ import bannerCss from './style.css';
 
   function ensurePlaceholderCss() {
     if (document.getElementById(PLACEHOLDER_STYLE_ID)) return;
-    const stil = document.createElement('style');
-    stil.id = PLACEHOLDER_STYLE_ID;
-    stil.textContent = placeholderCss;
-    (document.head || document.documentElement).appendChild(stil);
+    const styleEl = document.createElement('style');
+    styleEl.id = PLACEHOLDER_STYLE_ID;
+    styleEl.textContent = placeholderCss;
+    (document.head || document.documentElement).appendChild(styleEl);
   }
 
   /**
@@ -1522,43 +1525,43 @@ import bannerCss from './style.css';
    * titt med forhandsgranska hor till uppsattningen av varje sajt som faktiskt
    * har en hallen inbaddning.
    */
-  function sizePlaceholder(ruta, element) {
+  function sizePlaceholder(box, element) {
     const b = parseFloat(element.getAttribute('width'));
     const h = parseFloat(element.getAttribute('height'));
     if (b > 0 && h > 0) {
-      ruta.style.aspectRatio = `${b} / ${h}`;
+      box.style.aspectRatio = `${b} / ${h}`;
       return;
     }
 
     const rect = element.getBoundingClientRect();
-    if (rect.height > 0) ruta.style.minHeight = `${Math.round(rect.height)}px`;
+    if (rect.height > 0) box.style.minHeight = `${Math.round(rect.height)}px`;
   }
 
   /** Kategorins namn pa besokarens sprak, till texten i rutan. */
-  function categoryLabel(nyckel) {
-    const texter = kategoriTexter();
-    return (texter[nyckel] && texter[nyckel].etikett) || nyckel;
+  function categoryLabel(key) {
+    const texts = categoryTexts();
+    return (texts[key] && texts[key].label) || key;
   }
 
-  function buildPlaceholder(element, kategori) {
+  function buildPlaceholder(element, category) {
     ensurePlaceholderCss();
 
-    const ruta = document.createElement('div');
-    ruta.className = PLACEHOLDER_CLASS;
-    ruta.setAttribute('role', 'group');
+    const box = document.createElement('div');
+    box.className = PLACEHOLDER_CLASS;
+    box.setAttribute('role', 'group');
 
     const text = document.createElement('p');
     // textContent, aldrig innerHTML - samma regel som kategorikorten.
-    text.textContent = t.blockedBody.replace('{kategori}', categoryLabel(kategori));
+    text.textContent = t.blockedBody.replace('{kategori}', categoryLabel(category));
 
-    const knapp = document.createElement('button');
-    knapp.type = 'button';
-    knapp.textContent = t.blockedButton;
-    knapp.addEventListener('click', () => openSettings());
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = t.blockedButton;
+    button.addEventListener('click', () => openSettings());
 
-    ruta.append(text, knapp);
-    sizePlaceholder(ruta, element);
-    return ruta;
+    box.append(text, button);
+    sizePlaceholder(box, element);
+    return box;
   }
 
   //------------------------------------------------------------------------
@@ -1592,8 +1595,8 @@ import bannerCss from './style.css';
 
   function warnAboutMarkup() {
     for (const element of document.querySelectorAll('script[data-seos-consent]')) {
-      const typ = (element.getAttribute('type') || '').toLowerCase();
-      if (typ !== 'text/plain') {
+      const type = (element.getAttribute('type') || '').toLowerCase();
+      if (type !== 'text/plain') {
         console.warn(
           '[SEOS] This script has data-seos-consent but type="' +
             (element.getAttribute('type') || '') +
@@ -1621,11 +1624,11 @@ import bannerCss from './style.css';
     }
 
     for (const element of document.querySelectorAll('[data-seos-consent]')) {
-      const nyckel = element.getAttribute('data-seos-consent');
-      if (CATEGORY_KEYS.indexOf(nyckel) === -1) {
+      const key = element.getAttribute('data-seos-consent');
+      if (CATEGORY_KEYS.indexOf(key) === -1) {
         console.warn(
           '[SEOS] Unknown consent category "' +
-            nyckel +
+            key +
             '". Known categories: ' +
             CATEGORY_KEYS.join(', ') +
             '. This element will never be released.',
@@ -1641,16 +1644,16 @@ import bannerCss from './style.css';
 
   /** Vad elementet vantar pa. Okand kategori -> stannar tillbakahallet. */
   function embedCategory(element) {
-    const nyckel = element.getAttribute('data-seos-consent');
+    const key = element.getAttribute('data-seos-consent');
     // Varningen ligger i warnAboutMarkup(), som kors EN gang och syns i
     // konsolen. Har vore den tyst (log ar av i drift) och skulle dessutom
     // upprepas vid varje samtyckesandring.
-    if (CATEGORY_KEYS.indexOf(nyckel) === -1) return null;
-    return nyckel;
+    if (CATEGORY_KEYS.indexOf(key) === -1) return null;
+    return key;
   }
 
-  function isGranted(kategori) {
-    return kategori !== null && seosApi.hasConsent(kategori);
+  function isGranted(category) {
+    return category !== null && seosApi.hasConsent(category);
   }
 
   /**
@@ -1660,31 +1663,31 @@ import bannerCss from './style.css';
    * pa det befintliga elementet gor ingenting - webblasaren kor bara skript
    * som satts in i dokumentet. Darfor byggs ett nytt.
    */
-  function releaseScript(gammalt) {
-    const nytt = document.createElement('script');
+  function releaseScript(oldScript) {
+    const newScript = document.createElement('script');
 
-    for (const attribut of gammalt.attributes) {
-      if (attribut.name === 'type') continue;
-      if (attribut.name.indexOf('data-seos-') === 0) continue;
-      nytt.setAttribute(attribut.name, attribut.value);
+    for (const attr of oldScript.attributes) {
+      if (attr.name === 'type') continue;
+      if (attr.name.indexOf('data-seos-') === 0) continue;
+      newScript.setAttribute(attr.name, attr.value);
     }
-    if (gammalt.textContent) nytt.textContent = gammalt.textContent;
+    if (oldScript.textContent) newScript.textContent = oldScript.textContent;
 
     // Pa samma plats i dokumentet, sa ordningen mellan flera skript halls.
-    gammalt.parentNode.insertBefore(nytt, gammalt);
-    gammalt.remove();
+    oldScript.parentNode.insertBefore(newScript, oldScript);
+    oldScript.remove();
   }
 
   function releaseIframe(element) {
-    const adress = element.getAttribute('data-seos-src');
-    if (!adress) return;
+    const url = element.getAttribute('data-seos-src');
+    if (!url) return;
 
-    element.setAttribute('src', adress);
+    element.setAttribute('src', url);
     element.removeAttribute('data-seos-src');
     element.style.removeProperty('display');
 
-    const ruta = element.previousElementSibling;
-    if (ruta && ruta.classList.contains(PLACEHOLDER_CLASS)) ruta.remove();
+    const box = element.previousElementSibling;
+    if (box && box.classList.contains(PLACEHOLDER_CLASS)) box.remove();
   }
 
   function holdIframe(element) {
@@ -1696,12 +1699,12 @@ import bannerCss from './style.css';
       return;
     }
 
-    const kategori = element.getAttribute('data-seos-consent');
-    const ruta = buildPlaceholder(element, kategori);
+    const category = element.getAttribute('data-seos-consent');
+    const box = buildPlaceholder(element, category);
 
     // Rutan mats mot elementet INNAN det doljs - en dold iframe har ingen
     // storlek att lasa av.
-    element.parentNode.insertBefore(ruta, element);
+    element.parentNode.insertBefore(box, element);
     element.style.display = 'none';
   }
 
@@ -1801,9 +1804,9 @@ import bannerCss from './style.css';
 
     // Bara de reglage som faktiskt ritats. En dold kategori har inget element,
     // och applyToggleState hittar da ingenting att satta.
-    for (const kategori of toggleCategories()) {
-      if (kategori.is_required) continue;
-      applyToggleState(`${kategori.key}-toggle`, choices[kategori.key] === true);
+    for (const category of toggleCategories()) {
+      if (category.is_required) continue;
+      applyToggleState(`${category.key}-toggle`, choices[category.key] === true);
     }
 
     showSettingsModal();
@@ -1841,15 +1844,15 @@ import bannerCss from './style.css';
     // Lases fran de reglage som ritats. En dold kategori har inget element och
     // stannar pa false - samma regel som i acceptAllConsent: bevisloggen far
     // aldrig pasta att besokaren tog stallning till nagot hen inte fick se.
-    const val = { analytics: false, marketing: false, functional: false };
-    for (const kategori of toggleCategories()) {
-      if (kategori.is_required) continue;
-      val[kategori.key] = el(`${kategori.key}-toggle`)?.classList.contains('active') || false;
+    const choice = { analytics: false, marketing: false, functional: false };
+    for (const category of toggleCategories()) {
+      if (category.is_required) continue;
+      choice[category.key] = el(`${category.key}-toggle`)?.classList.contains('active') || false;
     }
 
-    const analytics = val.analytics;
-    const marketing = val.marketing;
-    const functional = val.functional;
+    const analytics = choice.analytics;
+    const marketing = choice.marketing;
+    const functional = choice.functional;
 
     const payload = {
       necessary: true,
@@ -1899,10 +1902,10 @@ import bannerCss from './style.css';
 
   function toggleCookie(element) {
     if (!element) return;
-    const pa = element.classList.toggle('active');
+    const isOn = element.classList.toggle('active');
     // aria-checked ar det ENDA en skarmlasare ser. Halls den inte i takt med
     // klassen laser den upp fel svar - tyst, och varre an inget svar alls.
-    element.setAttribute('aria-checked', pa ? 'true' : 'false');
+    element.setAttribute('aria-checked', isOn ? 'true' : 'false');
   }
 
   //========================================================================
