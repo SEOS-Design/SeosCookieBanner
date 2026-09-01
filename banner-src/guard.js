@@ -60,15 +60,39 @@ const EARLY_TRACKERS = __SEOS_EARLY__;
     held: [],
   };
 
-  /** Vilken kategori adressen kräver, eller null om vi inte känner igen den. */
+  /**
+   * Vilken kategori adressen kräver, eller null om vi inte känner igen den.
+   *
+   * ⚠️ MATCHAR PÅ VÄRDNAMNET, inte på adressen som text. En vanlig adress kan
+   * innehålla ett spåraranamn i en query-parameter:
+   *
+   *   /min-sida.js?ref=connect.facebook.net
+   *
+   * Med textmatchning hade den blockerats. Uppmätt 2026-09-01, och det är
+   * precis den överdrivna blockering spärren finns för att förhindra.
+   *
+   * Går adressen inte att tolka returneras null — okänt betyder alltid att vi
+   * inte rör den. Denylist, aldrig allowlist.
+   */
   guard.categoryFor = function (url) {
+    var host;
+    try {
+      host = new URL(url, document.baseURI).hostname;
+    } catch (e) {
+      return null;
+    }
     for (var i = 0; i < guard.list.length; i++) {
-      if (url.indexOf(guard.list[i][0]) !== -1) return guard.list[i][1];
+      var m = guard.list[i][0];
+      if (host === m || host.slice(-m.length - 1) === '.' + m) return guard.list[i][1];
     }
     return null;
   };
 
   window.SEOS_GUARD = guard;
+
+  // Sparas fore overskrivningen, sa getter n ovan kan ge samma svar som utan
+  // vakten.
+  var nativeSrc = Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype, 'src');
 
   var create = document.createElement;
 
@@ -81,8 +105,13 @@ const EARLY_TRACKERS = __SEOS_EARLY__;
     // släpper fram ett skript senare.
     Object.defineProperty(el, 'src', {
       configurable: true,
+      // ⚠️ Webblasarens EGEN getter, inte getAttribute.
+      //
+      // script.src ger normalt en ABSOLUT adress; getAttribute ger den rada
+      // texten. Skillnaden galler varje skriptelement pa sidan, inte bara
+      // sparare, och sajtens egen kod kan lasa den. Uppmatt 2026-09-01.
       get: function () {
-        return el.getAttribute('src') || '';
+        return nativeSrc && nativeSrc.get ? nativeSrc.get.call(el) : el.getAttribute('src') || '';
       },
       set: function (url) {
         var text = String(url);

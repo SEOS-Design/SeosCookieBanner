@@ -9,6 +9,7 @@ const SIDA = {
   felmarkt: '/tests/fixtures/banner-felmarkt.html',
   vakt: '/tests/fixtures/banner-vakt.html',
   vaktMeta: '/tests/fixtures/banner-vakt-meta.html',
+  bieffekter: '/tests/fixtures/vakt-bieffekter.html',
 };
 
 /** Registrerar varje forsok att na Facebook, aven de vi blockerar. */
@@ -2023,7 +2024,32 @@ test.describe('C5 punkt 4: markering som ser ratt ut men inte fungerar', () => {
 });
 
 test.describe('C5 punkt 5: vakten', () => {
+  /**
+   * Later de tre adresserna i testsidan svara lokalt.
+   *
+   * ⚠️ RIKTIGA VARDNAMN i fixturen, inte pahittade sokvagar. Vakten matchar pa
+   * vardnamnet - en adress med spararnamnet i sokvagen bevisar ingenting, och
+   * det var precis felet som fanns i forsta versionen av den har fixturen.
+   *
+   * Testerna kontaktar aldrig en tredje part: allt fangas upp har.
+   */
+  async function medSparare(page) {
+    const svar = (flagga) => ({
+      status: 200,
+      contentType: 'text/javascript',
+      body: `window.${flagga} = true;`,
+    });
+    await page.route('**://connect.facebook.net/**', (r) =>
+      r.fulfill(svar('SEOS_TEST_META_KORDE')),
+    );
+    await page.route('**://static.hotjar.com/**', (r) => r.fulfill(svar('SEOS_TEST_HOTJAR_KORDE')));
+    await page.route('**://exempel-tredjepart.se/**', (r) =>
+      r.fulfill(svar('SEOS_TEST_OKAND_KORDE')),
+    );
+  }
+
   const oppna = async (page) => {
+    await medSparare(page);
     await page.goto(SIDA.vakt);
     await expect(page.locator('#cookie-banner')).toBeVisible();
   };
@@ -2122,7 +2148,7 @@ test.describe('C5 punkt 5: vakten', () => {
     await page.evaluate(() => {
       window.SEOS_TEST_SENARE = false;
       const s = document.createElement('script');
-      s.src = '/tests/fixtures/connect.facebook.net/pixel.js';
+      s.src = 'https://connect.facebook.net/en_US/senare.js';
       s.onload = () => (window.SEOS_TEST_SENARE = true);
       document.head.appendChild(s);
     });
@@ -2139,7 +2165,7 @@ test.describe('C5 punkt 5: vakten', () => {
 
     await page.evaluate(() => {
       const s = document.createElement('script');
-      s.src = '/tests/fixtures/static.hotjar.com/hotjar.js';
+      s.src = 'https://static.hotjar.com/c/hotjar-456.js';
       document.head.appendChild(s);
     });
     await page.waitForTimeout(400);
@@ -2169,6 +2195,7 @@ test.describe('C5 punkt 5: vakten', () => {
 
   test('vakten fungerar aven om bannern aldrig laddar', async ({ page }) => {
     await medSkugga(page);
+    await medSparare(page);
     await page.route('**/v1/banner.js', (route) => route.abort('failed'));
     await page.goto(SIDA.vakt);
     await page.waitForTimeout(600);
@@ -2268,5 +2295,67 @@ test.describe('C5 punkt 5: vakten far inte blockera bannerns egen Meta-pixel', (
     await page.waitForTimeout(600);
 
     expect(anrop).toEqual([]);
+  });
+});
+
+test.describe('C5 punkt 5: vaktens bieffekter', () => {
+  // Vakten ligger pa VARJE skriptelement pa sidan, inte bara sparare. Det har
+  // ar testerna for att den inte andrar nagot for allt annat.
+  //
+  // Bada de tva forsta fangade riktiga fel 2026-09-01, hittade for att Björn
+  // fragade om nagot kunde bli blockerat innan han klistrade in raden.
+
+  const las = async (page) => {
+    await page.goto(SIDA.bieffekter);
+    return page.evaluate(() => window.R);
+  };
+
+  test('.src ger en ABSOLUT adress, precis som utan vakten', async ({ page }) => {
+    // Normalt returnerar script.src en absolut adress; getAttribute ger den
+    // rada texten. Skillnaden galler varje skript pa sidan, och sajtens egen
+    // kod kan lasa den.
+    const r = await las(page);
+    expect(r.relativ).toMatch(/^https?:\/\//);
+    expect(r.relativ).toContain('/tests/fixtures/tom-skript.js');
+  });
+
+  test('en vanlig adress med ett spararanamn i query blockeras INTE', async ({ page }) => {
+    // /min-sida.js?ref=connect.facebook.net ar inte en sparare. Matchningen
+    // gar pa vardnamnet, inte pa adressen som text.
+    const r = await las(page);
+    expect(r.queryBlockad).toBe(false);
+    expect(r.query).toContain('connect.facebook.net');
+  });
+
+  test('andra elementtyper ror vakten inte alls', async ({ page }) => {
+    const r = await las(page);
+    expect(r.imgHarEgenSrc).toBe(false);
+  });
+
+  test('setAttribute gar forbi vakten - en KAND lucka, inte ett fel', async ({ page }) => {
+    // Sajtens kod som anvander setAttribute i stallet for .src fangas inte.
+    // Det ar priset for att inte lagga sig i mer an nodvandigt. Star i
+    // driftmanualen 16 sa ingen tror att tacknigen ar total.
+    const r = await las(page);
+    expect(r.setAttributeBlockad).toBe(false);
+  });
+
+  test('vakten kastar aldrig pa en adress som inte gar att tolka', async ({ page }) => {
+    await page.goto(SIDA.bieffekter);
+    const fel = await page.evaluate(() => {
+      const prov = ['', 'data:text/javascript,void 0', 'blob:nonsense', '::trasig::'];
+      const ut = [];
+      for (const p of prov) {
+        try {
+          const s = document.createElement('script');
+          s.src = p;
+          ut.push('ok');
+        } catch (e) {
+          ut.push('KASTADE: ' + e.message);
+        }
+      }
+      return ut;
+    });
+    expect(fel).toEqual(['ok', 'ok', 'ok', 'ok']);
   });
 });

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="sv"><head><meta charset="utf-8"><title>Bieffekter</title>
+<script src="/tests/fixtures/vakt.js"></script>
+</head><body>
+<script>
+  window.R = {};
+  // 1. Vad ger .src tillbaka? Normalt en ABSOLUT adress.
+  var a = document.createElement('script');
+  a.src = '/tests/fixtures/tom-skript.js';
+  window.R.relativ = a.src;
+
+  // 2. En helt vanlig adress som RAKAR innehalla ett sparanamn i query.
+  var b = document.createElement('script');
+  b.src = '/tests/fixtures/tom-skript.js?ref=connect.facebook.net';
+  window.R.query = b.getAttribute('src');
+  window.R.queryBlockad = b.getAttribute('src') === null;
+
+  // 3. Andra elementtyper ska vara helt orörda.
+  var c = document.createElement('img');
+  window.R.imgHarEgenSrc = Object.getOwnPropertyDescriptor(c, 'src') !== undefined;
+
+  // 4. setAttribute gar forbi vakten.
+  var d = document.createElement('script');
+  d.setAttribute('src', 'https://connect.facebook.net/en_US/fbevents.js');
+  window.R.setAttributeBlockad = d.getAttribute('src') === null;
+</script>
+</body></html>
