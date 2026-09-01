@@ -1346,7 +1346,10 @@ button:hover {
         policyErrorBody: "Could not find an active policy for this domain.",
         policyNetworkTitle: "Network Error",
         policyNetworkBody: "Could not connect to the server to fetch policy.",
-        close: "Close"
+        close: "Close",
+        // Platshallaren for en inbaddning som hallits tillbaka (C5).
+        blockedBody: "This content appears once you accept {kategori}.",
+        blockedButton: "Change settings"
       },
       sv: {
         bannerTitle: "Vi värnar om din integritet",
@@ -1377,7 +1380,9 @@ button:hover {
         policyErrorBody: "Hittade ingen aktiv policy för den här domänen.",
         policyNetworkTitle: "Nätverksfel",
         policyNetworkBody: "Kunde inte ansluta till servern för att hämta policyn.",
-        close: "Stäng"
+        close: "Stäng",
+        blockedBody: "Innehållet visas när du godkänt {kategori}.",
+        blockedButton: "Ändra inställningar"
       }
     };
     const selfScript = document.currentScript || document.querySelector('script[src*="seos-cookie-banner"]');
@@ -2061,7 +2066,187 @@ button:hover {
         log("[GTM] Firing custom event: consent_granted_full");
       }
     }
-    function injectScriptsByConsent(payload) {
+    let currentConsent = null;
+    const consentListeners = /* @__PURE__ */ new Set();
+    function setConsent(payload) {
+      currentConsent = {
+        necessary: true,
+        analytics: payload.analytics === true,
+        functional: payload.functional === true,
+        marketing: payload.marketing === true
+      };
+      applyConsentToEmbeds();
+      notifyConsentChange();
+    }
+    function notifyConsentChange() {
+      const detalj = { ...currentConsent };
+      for (const lyssnare of consentListeners) {
+        try {
+          lyssnare(detalj);
+        } catch (fel) {
+          log("[C5] Lyssnare kastade:", fel && fel.message);
+        }
+      }
+      try {
+        document.dispatchEvent(new CustomEvent("seos:consent", { detail: detalj }));
+      } catch (fel) {
+        log("[C5] Kunde inte skicka seos:consent:", fel && fel.message);
+      }
+    }
+    const seosApi = {
+      hasConsent(kategori) {
+        if (kategori === "necessary") return true;
+        if (!currentConsent) return false;
+        return currentConsent[kategori] === true;
+      },
+      /** Returnerar en funktion som kopplar bort lyssnaren igen. */
+      onConsentChange(lyssnare) {
+        if (typeof lyssnare !== "function") return () => {
+        };
+        consentListeners.add(lyssnare);
+        if (currentConsent) {
+          try {
+            lyssnare({ ...currentConsent });
+          } catch (fel) {
+            log("[C5] Lyssnare kastade:", fel && fel.message);
+          }
+        }
+        return () => consentListeners.delete(lyssnare);
+      },
+      openSettings: () => openSettings(),
+      showPolicy: () => showPolicy()
+    };
+    const PLACEHOLDER_CLASS = "seos-blockerad";
+    const PLACEHOLDER_STYLE_ID = "seos-blockerad-css";
+    const placeholderCss = `
+.${PLACEHOLDER_CLASS} {
+  container-type: inline-size;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75em;
+  width: 100%;
+  padding: 1.25em;
+  text-align: center;
+  font-family: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+}
+.${PLACEHOLDER_CLASS} p {
+  margin: 0;
+  max-width: 40ch;
+  font-size: 0.9em;
+  line-height: 1.4;
+}
+.${PLACEHOLDER_CLASS} button {
+  font: inherit;
+  font-size: 0.9em;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 0.5em 1em;
+  cursor: pointer;
+}
+/* Regel 2: innehallet maste tala att krympa. En liten karta i en sidokolumn
+   ska inte bli en textvagg - da stannar bara knappen kvar. */
+@container (max-width: 260px) {
+  .${PLACEHOLDER_CLASS} p { display: none; }
+  .${PLACEHOLDER_CLASS} { padding: 0.75em; }
+}`;
+    function ensurePlaceholderCss() {
+      if (document.getElementById(PLACEHOLDER_STYLE_ID)) return;
+      const stil = document.createElement("style");
+      stil.id = PLACEHOLDER_STYLE_ID;
+      stil.textContent = placeholderCss;
+      (document.head || document.documentElement).appendChild(stil);
+    }
+    function sizePlaceholder(ruta, element) {
+      const b = parseFloat(element.getAttribute("width"));
+      const h = parseFloat(element.getAttribute("height"));
+      if (b > 0 && h > 0) {
+        ruta.style.aspectRatio = `${b} / ${h}`;
+        return;
+      }
+      const rect = element.getBoundingClientRect();
+      if (rect.height > 0) ruta.style.minHeight = `${Math.round(rect.height)}px`;
+    }
+    function categoryLabel(nyckel) {
+      const texter = kategoriTexter();
+      return texter[nyckel] && texter[nyckel].etikett || nyckel;
+    }
+    function buildPlaceholder(element, kategori) {
+      ensurePlaceholderCss();
+      const ruta = document.createElement("div");
+      ruta.className = PLACEHOLDER_CLASS;
+      ruta.setAttribute("role", "group");
+      const text = document.createElement("p");
+      text.textContent = t.blockedBody.replace("{kategori}", categoryLabel(kategori));
+      const knapp = document.createElement("button");
+      knapp.type = "button";
+      knapp.textContent = t.blockedButton;
+      knapp.addEventListener("click", () => openSettings());
+      ruta.append(text, knapp);
+      sizePlaceholder(ruta, element);
+      return ruta;
+    }
+    function embedCategory(element) {
+      const nyckel = element.getAttribute("data-seos-consent");
+      if (CATEGORY_KEYS.indexOf(nyckel) === -1) {
+        log("[C5] Okand kategori pa element, slapps inte fram:", nyckel);
+        return null;
+      }
+      return nyckel;
+    }
+    function isGranted(kategori) {
+      return kategori !== null && seosApi.hasConsent(kategori);
+    }
+    function releaseScript(gammalt) {
+      const nytt = document.createElement("script");
+      for (const attribut of gammalt.attributes) {
+        if (attribut.name === "type") continue;
+        if (attribut.name.indexOf("data-seos-") === 0) continue;
+        nytt.setAttribute(attribut.name, attribut.value);
+      }
+      if (gammalt.textContent) nytt.textContent = gammalt.textContent;
+      gammalt.parentNode.insertBefore(nytt, gammalt);
+      gammalt.remove();
+    }
+    function releaseIframe(element) {
+      const adress = element.getAttribute("data-seos-src");
+      if (!adress) return;
+      element.setAttribute("src", adress);
+      element.removeAttribute("data-seos-src");
+      element.style.removeProperty("display");
+      const ruta = element.previousElementSibling;
+      if (ruta && ruta.classList.contains(PLACEHOLDER_CLASS)) ruta.remove();
+    }
+    function holdIframe(element) {
+      if (element.previousElementSibling && element.previousElementSibling.classList.contains(PLACEHOLDER_CLASS)) {
+        return;
+      }
+      const kategori = element.getAttribute("data-seos-consent");
+      const ruta = buildPlaceholder(element, kategori);
+      element.parentNode.insertBefore(ruta, element);
+      element.style.display = "none";
+    }
+    function applyConsentToEmbeds() {
+      for (const element of document.querySelectorAll(
+        'script[type="text/plain"][data-seos-consent]'
+      )) {
+        if (isGranted(embedCategory(element))) releaseScript(element);
+      }
+      for (const element of document.querySelectorAll("iframe[data-seos-consent]")) {
+        if (isGranted(embedCategory(element))) {
+          releaseIframe(element);
+        } else if (element.hasAttribute("data-seos-src")) {
+          holdIframe(element);
+        }
+      }
     }
     function acceptAll() {
       const payload = acceptAllConsent();
@@ -2070,7 +2255,7 @@ button:hover {
       applyGoogleConsentFromPayload(payload);
       applyMetaConsentFromPayload(payload);
       triggerGTMConsentEvent();
-      injectScriptsByConsent(payload);
+      setConsent(payload);
       saveConsentAndSend(payload);
     }
     function acceptEssential() {
@@ -2079,6 +2264,7 @@ button:hover {
       hideAllBanners();
       applyGoogleConsentFromPayload(payload);
       applyMetaConsentFromPayload(payload);
+      setConsent(payload);
       saveConsentAndSend(payload);
     }
     async function openSettings() {
@@ -2160,6 +2346,7 @@ button:hover {
       if (analytics) {
         triggerGTMConsentEvent();
       }
+      setConsent(payload);
       saveConsentAndSend(payload);
       hideAllBanners();
       log("[Settings] Custom choices saved:", choices);
@@ -2249,12 +2436,13 @@ button:hover {
         applyMetaConsentFromPayload(payload);
         if (payload.analytics === true) {
           triggerGTMConsentEvent();
-          injectScriptsByConsent(payload);
         }
+        setConsent(payload);
       }
     }
     function initializeBanner() {
       injectBannerHTML();
+      if (!currentConsent) applyConsentToEmbeds();
       applyDesign();
       const webflowLink = document.getElementById("open-cookie-settings");
       if (webflowLink) {
@@ -2287,6 +2475,7 @@ button:hover {
     window.toggleCookie = toggleCookie;
     window.showPolicy = showPolicy;
     window.closePolicy = closePolicy;
+    window.SEOS = seosApi;
     if (META_PIXEL_ID) ensureFbqStub();
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", initializeBanner);

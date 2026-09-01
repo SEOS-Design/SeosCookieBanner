@@ -100,6 +100,9 @@ import bannerCss from './style.css';
       policyNetworkTitle: 'Network Error',
       policyNetworkBody: 'Could not connect to the server to fetch policy.',
       close: 'Close',
+      // Platshallaren for en inbaddning som hallits tillbaka (C5).
+      blockedBody: 'This content appears once you accept {kategori}.',
+      blockedButton: 'Change settings',
     },
     sv: {
       bannerTitle: 'Vi värnar om din integritet',
@@ -132,6 +135,8 @@ import bannerCss from './style.css';
       policyNetworkTitle: 'Nätverksfel',
       policyNetworkBody: 'Kunde inte ansluta till servern för att hämta policyn.',
       close: 'Stäng',
+      blockedBody: 'Innehållet visas när du godkänt {kategori}.',
+      blockedButton: 'Ändra inställningar',
     },
   };
 
@@ -1310,7 +1315,351 @@ import bannerCss from './style.css';
     }
   }
 
-  function injectScriptsByConsent(payload) {}
+  //========================================================================
+  // C5 STEG 1-3: SLAPPA FRAM, PLATSHALLAREN, OCH LATA SAJTEN FRAGA
+  //========================================================================
+  //
+  // ⛔ SPARREN GALLER FORE ALLT ANNAT HAR. Fyra fragor innan nagot hålls
+  // tillbaka, nedskrivna i dokumentationen avsnitt C5:
+  //
+  //   1. Sparar den?                  Nej -> hall aldrig tillbaka (cal.com)
+  //   2. Bad besokaren om den?        Ja  -> ladda vid klicket i stallet
+  //   3. Gar sidan att anvanda utan?  Nej -> manskligt beslut, aldrig automatik
+  //   4. Syns det, och ett klick vidare? Nej -> gor det inte
+  //
+  // Björns regel 2026-09-01: BLOCKERING SKA VARA LOGISK, ALDRIG AGGRESSIV. En
+  // besokare som inte kan boka ett mote eller se en video ar ett samre utfall
+  // an en cookie vi kunde ha stoppat.
+  //
+  // ⚠️ "Hallen tillbaka" betyder ETT KLICK EXTRA, inte otillganglig. Det ar
+  // hela skalet till att platshallaren inte ar valfri.
+  //
+  // DEN HAR KODEN HALLER INTE TILLBAKA NAGOT SJALV. Den slapper fram det som
+  // sajtens egen markering redan hallit tillbaka:
+  //
+  //   <script type="text/plain" data-seos-consent="marketing" src="...">
+  //   <iframe data-seos-consent="marketing" data-seos-src="https://...">
+  //
+  // Bada ar overta av webblasaren: ett skript med fel type korrs aldrig, och
+  // en iframe utan src hamtar ingenting. Bannern behover alltsa inte hinna
+  // fore, och kan ligga kvar som async. Att fanga skript som INTE ar markta
+  // ar steg 5 (modell B-lite) och finns inte har.
+
+  // Vad besokaren har sagt ja till, just nu. null = inget svar an.
+  //
+  // Fanns inte fore C5: samtycket lastes ur kakan pa varje stalle som behovde
+  // det. Med en enda kalla kan bade inbaddningarna och sajtens egen kod fraga
+  // samma sak och alltid fa samma svar.
+  let currentConsent = null;
+
+  const consentListeners = new Set();
+
+  /**
+   * Enda vagen in for ett samtycke. Alla vagar - acceptera alla, endast
+   * nodvandiga, spara installningar, och sparat samtycke vid sidladdning -
+   * gar genom den har.
+   *
+   * ⚠️ Lagg aldrig till en femte vag som inte gor det. Da skulle sajtens egen
+   * kod och inbaddningarna kunna ha olika bild av samma samtycke.
+   */
+  function setConsent(payload) {
+    currentConsent = {
+      necessary: true,
+      analytics: payload.analytics === true,
+      functional: payload.functional === true,
+      marketing: payload.marketing === true,
+    };
+
+    applyConsentToEmbeds();
+    notifyConsentChange();
+  }
+
+  function notifyConsentChange() {
+    const detalj = { ...currentConsent };
+
+    for (const lyssnare of consentListeners) {
+      // En trasig lyssnare hos kunden far inte stoppa de ovriga, och inte
+      // heller resten av samtyckesvagen.
+      try {
+        lyssnare(detalj);
+      } catch (fel) {
+        log('[C5] Lyssnare kastade:', fel && fel.message);
+      }
+    }
+
+    try {
+      document.dispatchEvent(new CustomEvent('seos:consent', { detail: detalj }));
+    } catch (fel) {
+      log('[C5] Kunde inte skicka seos:consent:', fel && fel.message);
+    }
+  }
+
+  /**
+   * PUBLIKT API for sajtens egen kod.
+   *
+   * Behovs for det som varken ar ett <script> eller en <iframe> i HTML:en.
+   * Upptacktes genom seosdesigns kontaktwidget: den skapar cal.com-skriptet i
+   * JavaScript vid klick, sa det finns ingen rad att marka - sajtens kod maste
+   * kunna fraga sjalv.
+   *
+   *   if (window.SEOS.hasConsent('marketing')) laddaKartan();
+   *
+   *   window.SEOS.onConsentChange((samtycke) => {
+   *     if (samtycke.marketing) laddaKartan();
+   *   });
+   *
+   * ⚠️ hasConsent() ger FALSE innan besokaren svarat. Det ar det sakra svaret:
+   * ingenting ska laddas pa ett samtycke som inte finns. Vill man reagera nar
+   * svaret kommer ar det onConsentChange() som galler.
+   */
+  const seosApi = {
+    hasConsent(kategori) {
+      if (kategori === 'necessary') return true;
+      if (!currentConsent) return false;
+      return currentConsent[kategori] === true;
+    },
+
+    /** Returnerar en funktion som kopplar bort lyssnaren igen. */
+    onConsentChange(lyssnare) {
+      if (typeof lyssnare !== 'function') return () => {};
+      consentListeners.add(lyssnare);
+      // Har svaret redan kommit far lyssnaren det direkt. Utan det hade en
+      // sajt som kopplar sig sent aldrig fatt veta nagot.
+      if (currentConsent) {
+        try {
+          lyssnare({ ...currentConsent });
+        } catch (fel) {
+          log('[C5] Lyssnare kastade:', fel && fel.message);
+        }
+      }
+      return () => consentListeners.delete(lyssnare);
+    },
+
+    openSettings: () => openSettings(),
+    showPolicy: () => showPolicy(),
+  };
+
+  //------------------------------------------------------------------------
+  // PLATSHALLAREN
+  //------------------------------------------------------------------------
+  //
+  // Ligger pa KUNDENS sida, utanfor bannerns skugga, sa bannerns stilmall nar
+  // den inte. Den bar darfor sin egen.
+  //
+  // FARG OCH TYPSNITT LOSER SIG SJALVT: inherit och currentColor gor att rutan
+  // arver sajtens typsnitt och textfarg, och ramen far samma farg som texten.
+  // Da fungerar den mot bade mork och ljus bakgrund utan konfiguration. Samma
+  // princip som gjorde att bannern smalter in efter C3.
+  //
+  // STORLEK OCH FORM GOR DET INTE. Se sizePlaceholder() nedan.
+
+  const PLACEHOLDER_CLASS = 'seos-blockerad';
+  const PLACEHOLDER_STYLE_ID = 'seos-blockerad-css';
+
+  const placeholderCss = `
+.${PLACEHOLDER_CLASS} {
+  container-type: inline-size;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75em;
+  width: 100%;
+  padding: 1.25em;
+  text-align: center;
+  font-family: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+}
+.${PLACEHOLDER_CLASS} p {
+  margin: 0;
+  max-width: 40ch;
+  font-size: 0.9em;
+  line-height: 1.4;
+}
+.${PLACEHOLDER_CLASS} button {
+  font: inherit;
+  font-size: 0.9em;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 0.5em 1em;
+  cursor: pointer;
+}
+/* Regel 2: innehallet maste tala att krympa. En liten karta i en sidokolumn
+   ska inte bli en textvagg - da stannar bara knappen kvar. */
+@container (max-width: 260px) {
+  .${PLACEHOLDER_CLASS} p { display: none; }
+  .${PLACEHOLDER_CLASS} { padding: 0.75em; }
+}`;
+
+  function ensurePlaceholderCss() {
+    if (document.getElementById(PLACEHOLDER_STYLE_ID)) return;
+    const stil = document.createElement('style');
+    stil.id = PLACEHOLDER_STYLE_ID;
+    stil.textContent = placeholderCss;
+    (document.head || document.documentElement).appendChild(stil);
+  }
+
+  /**
+   * REGEL 1: rutan tar den plats elementet redan hade.
+   *
+   * ⚠️ LAYOUTEN FAR INTE HOPPA. For en SEO-byra ar det inte en detalj utan
+   * Core Web Vitals - samma skal som fick modell B att falla.
+   *
+   * Tva vagar, i tur och ordning:
+   *   1. Har elementet width- och height-attribut anvands deras FORHALLANDE,
+   *      inte deras pixlar. Da ar rutan lika hog som videon skulle blivit,
+   *      oavsett hur bred behallaren ar.
+   *   2. Annars mats elementets hojd som den faktiskt ar pa sidan.
+   *
+   * Uppmatt 2026-08-31 mot skarpa /kontakt: en behallare med min-height 700px
+   * gav ett stort tomrum. Sadant gar inte att rakna fram - det ar darfor en
+   * titt med forhandsgranska hor till uppsattningen av varje sajt som faktiskt
+   * har en hallen inbaddning.
+   */
+  function sizePlaceholder(ruta, element) {
+    const b = parseFloat(element.getAttribute('width'));
+    const h = parseFloat(element.getAttribute('height'));
+    if (b > 0 && h > 0) {
+      ruta.style.aspectRatio = `${b} / ${h}`;
+      return;
+    }
+
+    const rect = element.getBoundingClientRect();
+    if (rect.height > 0) ruta.style.minHeight = `${Math.round(rect.height)}px`;
+  }
+
+  /** Kategorins namn pa besokarens sprak, till texten i rutan. */
+  function categoryLabel(nyckel) {
+    const texter = kategoriTexter();
+    return (texter[nyckel] && texter[nyckel].etikett) || nyckel;
+  }
+
+  function buildPlaceholder(element, kategori) {
+    ensurePlaceholderCss();
+
+    const ruta = document.createElement('div');
+    ruta.className = PLACEHOLDER_CLASS;
+    ruta.setAttribute('role', 'group');
+
+    const text = document.createElement('p');
+    // textContent, aldrig innerHTML - samma regel som kategorikorten.
+    text.textContent = t.blockedBody.replace('{kategori}', categoryLabel(kategori));
+
+    const knapp = document.createElement('button');
+    knapp.type = 'button';
+    knapp.textContent = t.blockedButton;
+    knapp.addEventListener('click', () => openSettings());
+
+    ruta.append(text, knapp);
+    sizePlaceholder(ruta, element);
+    return ruta;
+  }
+
+  //------------------------------------------------------------------------
+  // AKTIVERINGEN
+  //------------------------------------------------------------------------
+
+  /** Vad elementet vantar pa. Okand kategori -> stannar tillbakahallet. */
+  function embedCategory(element) {
+    const nyckel = element.getAttribute('data-seos-consent');
+    if (CATEGORY_KEYS.indexOf(nyckel) === -1) {
+      log('[C5] Okand kategori pa element, slapps inte fram:', nyckel);
+      return null;
+    }
+    return nyckel;
+  }
+
+  function isGranted(kategori) {
+    return kategori !== null && seosApi.hasConsent(kategori);
+  }
+
+  /**
+   * Slapper fram ett markt skript.
+   *
+   * Ett <script type="text/plain"> har aldrig korrts, och att bara byta type
+   * pa det befintliga elementet gor ingenting - webblasaren kor bara skript
+   * som satts in i dokumentet. Darfor byggs ett nytt.
+   */
+  function releaseScript(gammalt) {
+    const nytt = document.createElement('script');
+
+    for (const attribut of gammalt.attributes) {
+      if (attribut.name === 'type') continue;
+      if (attribut.name.indexOf('data-seos-') === 0) continue;
+      nytt.setAttribute(attribut.name, attribut.value);
+    }
+    if (gammalt.textContent) nytt.textContent = gammalt.textContent;
+
+    // Pa samma plats i dokumentet, sa ordningen mellan flera skript halls.
+    gammalt.parentNode.insertBefore(nytt, gammalt);
+    gammalt.remove();
+  }
+
+  function releaseIframe(element) {
+    const adress = element.getAttribute('data-seos-src');
+    if (!adress) return;
+
+    element.setAttribute('src', adress);
+    element.removeAttribute('data-seos-src');
+    element.style.removeProperty('display');
+
+    const ruta = element.previousElementSibling;
+    if (ruta && ruta.classList.contains(PLACEHOLDER_CLASS)) ruta.remove();
+  }
+
+  function holdIframe(element) {
+    // Redan tillbakahallen: rutan star kvar och behover inte ritas om.
+    if (
+      element.previousElementSibling &&
+      element.previousElementSibling.classList.contains(PLACEHOLDER_CLASS)
+    ) {
+      return;
+    }
+
+    const kategori = element.getAttribute('data-seos-consent');
+    const ruta = buildPlaceholder(element, kategori);
+
+    // Rutan mats mot elementet INNAN det doljs - en dold iframe har ingen
+    // storlek att lasa av.
+    element.parentNode.insertBefore(ruta, element);
+    element.style.display = 'none';
+  }
+
+  /**
+   * Gar igenom sidan och slapper fram det som fatt sitt samtycke, ritar
+   * platshallare for resten.
+   *
+   * Korrs vid varje samtyckesandring OCH vid sidladdning, sa att en besokare
+   * som redan sagt ja aldrig moter en platshallare i onodan.
+   *
+   * ⚠️ ETT SKRIPT SOM REDAN KORRTS GAR INTE ATT AVBRYTA. Aterkallat samtycke
+   * kraver omladdning. Sa fungerar alla samtyckesverktyg - det star i
+   * dokumentationen och ska sagas rakt ut, inte doljas. En IFRAME kan daremot
+   * tas tillbaka, och det gor den har.
+   */
+  function applyConsentToEmbeds() {
+    // Skripten i dokumentordning, sa att ett skript som beror pa ett annat
+    // fortfarande kommer efter det.
+    for (const element of document.querySelectorAll(
+      'script[type="text/plain"][data-seos-consent]',
+    )) {
+      if (isGranted(embedCategory(element))) releaseScript(element);
+    }
+
+    for (const element of document.querySelectorAll('iframe[data-seos-consent]')) {
+      if (isGranted(embedCategory(element))) {
+        releaseIframe(element);
+      } else if (element.hasAttribute('data-seos-src')) {
+        holdIframe(element);
+      }
+    }
+  }
 
   //========================================================================
   // USER ACTION HANDLERS
@@ -1323,7 +1672,7 @@ import bannerCss from './style.css';
     applyGoogleConsentFromPayload(payload);
     applyMetaConsentFromPayload(payload);
     triggerGTMConsentEvent();
-    injectScriptsByConsent(payload);
+    setConsent(payload);
     saveConsentAndSend(payload);
   }
 
@@ -1333,6 +1682,9 @@ import bannerCss from './style.css';
     hideAllBanners();
     applyGoogleConsentFromPayload(payload);
     applyMetaConsentFromPayload(payload);
+    // Anropas AVEN har, trots att ingenting slapps fram: platshallarna ska
+    // ritas, och sajtens egna lyssnare ska fa sitt nej.
+    setConsent(payload);
     saveConsentAndSend(payload);
   }
 
@@ -1450,6 +1802,7 @@ import bannerCss from './style.css';
       triggerGTMConsentEvent();
     }
 
+    setConsent(payload);
     saveConsentAndSend(payload);
 
     hideAllBanners();
@@ -1569,13 +1922,26 @@ import bannerCss from './style.css';
       applyMetaConsentFromPayload(payload);
       if (payload.analytics === true) {
         triggerGTMConsentEvent();
-        injectScriptsByConsent(payload);
       }
+      // ⚠️ LAG TIDIGARE INNANFOR analytics-villkoret ovan. Med en tom stubbe
+      // spelade det ingen roll, men fran och med C5 hade en atervandande
+      // besokare som bara godkant MARKNADSFORING aldrig fatt sina
+      // inbaddningar framslappta - de hade motts av en platshallare for ett
+      // samtycke de redan gett.
+      setConsent(payload);
     }
   }
 
   function initializeBanner() {
     injectBannerHTML();
+
+    // Ritar platshallarna for den som annu inte svarat. Utan det hade en
+    // tillbakahallen inbaddning varit ett tomt halrum tills besokaren klickat,
+    // och det ar precis det spärrens fraga 4 forbjuder.
+    //
+    // Ligger fore loadAndApplySavedConsent(): har besokaren redan sagt ja
+    // slapps allt fram i samma andetag, och rutan hinner aldrig synas.
+    if (!currentConsent) applyConsentToEmbeds();
 
     // Designen kan ha hunnit fram innan vardelementet fanns. Applicera nu.
     applyDesign();
@@ -1636,6 +2002,15 @@ import bannerCss from './style.css';
   window.toggleCookie = toggleCookie;
   window.showPolicy = showPolicy;
   window.closePolicy = closePolicy;
+
+  // window.SEOS skapas direkt nar skriptet korrs, INTE i initializeBanner.
+  // Samma skal som fbq-stubben nedan: ju tidigare den finns, desto mindre
+  // fonster dar sajtens egen kod kan traffa ett odefinierat window.SEOS.
+  //
+  // hasConsent() svarar false tills samtycket ar last, vilket ar det sakra
+  // svaret. Sajten som vill reagera nar svaret kommer anvander
+  // onConsentChange(), som ocksa fyrar direkt om svaret redan finns.
+  window.SEOS = seosApi;
 
   // Stubben skapas direkt nar skriptet korrs - INTE i initializeBanner, som
   // vantar pa DOMContentLoaded. Ju tidigare den finns, desto mindre fonster dar

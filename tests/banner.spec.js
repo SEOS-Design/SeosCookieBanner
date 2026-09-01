@@ -5,6 +5,7 @@ const SIDA = {
   medPixel: '/tests/fixtures/banner-meta.html',
   tidigLead: '/tests/fixtures/banner-meta-tidig-lead.html',
   kundCss: '/tests/fixtures/banner-kundcss.html',
+  inbaddningar: '/tests/fixtures/banner-inbaddningar.html',
 };
 
 /** Registrerar varje forsok att na Facebook, aven de vi blockerar. */
@@ -1656,5 +1657,275 @@ test.describe('Texter fran databasen (C1 steg 3)', () => {
     const marke = page.locator('#etikett-necessary .badge');
     await expect(marke).toHaveText('KRÄVS');
     await expect(page.locator('#etikett-necessary')).toHaveText('Grundlaggande KRÄVS');
+  });
+});
+
+test.describe('C5 steg 1-3: inbaddningar som halls tillbaka', () => {
+  const platshallare = (page) => page.locator('.seos-blockerad');
+
+  const oppna = async (page) => {
+    await page.goto(SIDA.inbaddningar);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+  };
+
+  //=======================================================================
+  // SPARREN: ingenting slapps fram utan samtycke, och ingenting halls
+  // tillbaka i onodan.
+  //=======================================================================
+
+  test('inget markt skript kors innan besokaren svarat', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+
+    expect(await page.evaluate(() => window.SEOS_TEST_MARKETING)).toBeUndefined();
+    expect(await page.evaluate(() => window.SEOS_TEST_ANALYTICS)).toBeUndefined();
+  });
+
+  test('en tillbakahallen inbaddning blir en platshallare, inte ett tomt halrum', async ({
+    page,
+  }) => {
+    await medSkugga(page);
+    await oppna(page);
+
+    // Fraga 4 i sparren: det ska SYNAS, och ga att komma vidare pa ett klick.
+    await expect(platshallare(page)).toHaveCount(2);
+    await expect(platshallare(page).first()).toBeVisible();
+    await expect(platshallare(page).first().getByRole('button')).toBeVisible();
+  });
+
+  test('platshallarens knapp oppnar installningarna', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+
+    await platshallare(page).first().getByRole('button').click();
+    await expect(page.locator('#cookie-settings')).toBeVisible();
+  });
+
+  test('platshallaren namner vilken kategori det galler', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+
+    await expect(platshallare(page).first()).toContainText('Marknadsföring');
+  });
+
+  //=======================================================================
+  // AKTIVERINGEN
+  //=======================================================================
+
+  test('acceptera alla slapper fram skripten och inbaddningarna', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+    await knapp.acceptera(page).click();
+
+    await expect.poll(() => page.evaluate(() => window.SEOS_TEST_MARKETING)).toBe(true);
+    expect(await page.evaluate(() => window.SEOS_TEST_ANALYTICS)).toBe(true);
+
+    await expect(platshallare(page)).toHaveCount(0);
+    await expect(page.locator('#video')).toHaveAttribute('src', /tom\.html/);
+  });
+
+  test('endast nodvandiga slapper inte fram nagot', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+    await knapp.neka(page).click();
+
+    expect(await page.evaluate(() => window.SEOS_TEST_MARKETING)).toBeUndefined();
+    expect(await page.evaluate(() => window.SEOS_TEST_ANALYTICS)).toBeUndefined();
+    // Rutorna star kvar, sa besokaren kan andra sig.
+    await expect(platshallare(page)).toHaveCount(2);
+  });
+
+  test('en okand kategori slapps aldrig fram', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+    await knapp.acceptera(page).click();
+
+    await expect.poll(() => page.evaluate(() => window.SEOS_TEST_MARKETING)).toBe(true);
+    // Samma klick, samma sida: det markta med hittepa-kategori kordes inte.
+    expect(await page.evaluate(() => window.SEOS_TEST_OKAND)).toBeUndefined();
+  });
+
+  test('ordningen mellan skript i samma kategori halls', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+    await knapp.acceptera(page).click();
+
+    // 'ab', aldrig 'ba'. Ett skript som beror pa ett annat maste komma efter.
+    await expect.poll(() => page.evaluate(() => window.SEOS_TEST_ORDNING)).toBe('ab');
+  });
+
+  test('bara den godkanda kategorin slapps fram', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+
+    await page.locator('#cookie-banner .btn-customize').click();
+    await expect(page.locator('#cookie-settings')).toBeVisible();
+    await page.locator('#analytics-toggle').click();
+    await page.locator('#cookie-settings .btn-save').click();
+
+    await expect.poll(() => page.evaluate(() => window.SEOS_TEST_ANALYTICS)).toBe(true);
+    expect(await page.evaluate(() => window.SEOS_TEST_MARKETING)).toBeUndefined();
+
+    // Videon (marknadsforing) har kvar sin ruta, kartan (funktionell) ocksa.
+    await expect(platshallare(page)).toHaveCount(2);
+  });
+
+  //=======================================================================
+  // ATERVANDANDE BESOKARE
+  //
+  // Regressionen som var inbyggd fore C5: anropet lag innanfor
+  // if (payload.analytics === true), sa den som bara godkant marknadsforing
+  // hade motts av en platshallare for ett samtycke hen redan gett.
+  //=======================================================================
+
+  test('den som bara godkant marknadsforing far sina inbaddningar vid aterbesok', async ({
+    page,
+    context,
+    baseURL,
+  }) => {
+    await context.addCookies([
+      { name: 'consent_status', value: 'custom', url: baseURL },
+      {
+        name: 'consent_choices',
+        value: JSON.stringify({ analytics: false, marketing: true, functional: false }),
+        url: baseURL,
+      },
+    ]);
+    await medSkugga(page);
+    await page.goto(SIDA.inbaddningar);
+
+    await expect.poll(() => page.evaluate(() => window.SEOS_TEST_MARKETING)).toBe(true);
+    expect(await page.evaluate(() => window.SEOS_TEST_ANALYTICS)).toBeUndefined();
+    // Bara kartan (funktionell) ska ha en ruta kvar.
+    await expect(platshallare(page)).toHaveCount(1);
+  });
+
+  //=======================================================================
+  // PUBLIKT API - for sajtens EGEN kod
+  //=======================================================================
+
+  test('hasConsent svarar false innan besokaren har svarat', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+
+    expect(await page.evaluate(() => window.SEOS.hasConsent('marketing'))).toBe(false);
+    // Nodvandiga ar alltid sant - bannern satter sin egen samtyckescookie.
+    expect(await page.evaluate(() => window.SEOS.hasConsent('necessary'))).toBe(true);
+  });
+
+  test('hasConsent svarar true efter samtycke', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+    await knapp.acceptera(page).click();
+
+    await expect.poll(() => page.evaluate(() => window.SEOS.hasConsent('marketing'))).toBe(true);
+  });
+
+  test('onConsentChange fyrar nar besokaren svarar', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+
+    await page.evaluate(() => {
+      window.SEOS_TEST_HANDELSER = [];
+      window.SEOS.onConsentChange((s) => window.SEOS_TEST_HANDELSER.push(s.marketing));
+    });
+
+    await knapp.acceptera(page).click();
+    await expect.poll(() => page.evaluate(() => window.SEOS_TEST_HANDELSER)).toEqual([true]);
+  });
+
+  test('onConsentChange fyrar direkt for den som kopplar sig sent', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+    await knapp.acceptera(page).click();
+    await expect.poll(() => page.evaluate(() => window.SEOS.hasConsent('marketing'))).toBe(true);
+
+    // Kopplar sig EFTER samtycket. Ska anda fa svaret, annars hade en sajt som
+    // laddar sin kod sent aldrig fatt veta nagot.
+    const svar = await page.evaluate(
+      () =>
+        new Promise((klar) => {
+          window.SEOS.onConsentChange((s) => klar(s.marketing));
+        }),
+    );
+    expect(svar).toBe(true);
+  });
+
+  test('seos:consent skickas som handelse pa document', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+
+    await page.evaluate(() => {
+      window.SEOS_TEST_EVENT = null;
+      document.addEventListener('seos:consent', (e) => {
+        window.SEOS_TEST_EVENT = e.detail;
+      });
+    });
+
+    await knapp.neka(page).click();
+    await expect
+      .poll(() => page.evaluate(() => window.SEOS_TEST_EVENT && window.SEOS_TEST_EVENT.marketing))
+      .toBe(false);
+  });
+
+  test('en trasig lyssnare stoppar inte de ovriga', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+
+    await page.evaluate(() => {
+      window.SEOS_TEST_ANDRA = false;
+      window.SEOS.onConsentChange(() => {
+        throw new Error('kundens kod ar trasig');
+      });
+      window.SEOS.onConsentChange(() => {
+        window.SEOS_TEST_ANDRA = true;
+      });
+    });
+
+    await knapp.acceptera(page).click();
+    await expect.poll(() => page.evaluate(() => window.SEOS_TEST_ANDRA)).toBe(true);
+    // Och samtycket gick fram trots undantaget.
+    await expect.poll(() => page.evaluate(() => window.SEOS_TEST_MARKETING)).toBe(true);
+  });
+
+  //=======================================================================
+  // PLATSHALLARENS FORM
+  //=======================================================================
+
+  test('rutan tar elementets bildforhallande, sa layouten inte hoppar', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+
+    // 640x360 pa iframen ska bli 16:9 pa rutan.
+    const kvot = await page.evaluate(() => {
+      const r = document.querySelector('.seos-blockerad').getBoundingClientRect();
+      return r.width / r.height;
+    });
+    expect(kvot).toBeGreaterThan(1.7);
+    expect(kvot).toBeLessThan(1.8);
+  });
+
+  test('rutan arver sajtens typsnitt och farg', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+
+    const stil = await page.evaluate(() => {
+      const s = getComputedStyle(document.querySelector('.seos-blockerad'));
+      return { typsnitt: s.fontFamily, farg: s.color, ram: s.borderTopColor };
+    });
+    expect(stil.typsnitt).toContain('Georgia');
+    expect(stil.farg).toBe('rgb(43, 33, 24)');
+    // currentColor: ramen ska ha samma farg som texten.
+    expect(stil.ram).toBe(stil.farg);
+  });
+
+  test('texten faller bort i en smal ruta, knappen star kvar', async ({ page }) => {
+    await medSkugga(page);
+    await oppna(page);
+
+    const smal = page.locator('.smal .seos-blockerad');
+    await expect(smal).toBeVisible();
+    await expect(smal.locator('p')).toBeHidden();
+    await expect(smal.getByRole('button')).toBeVisible();
   });
 });

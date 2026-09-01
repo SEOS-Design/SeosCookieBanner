@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8" />
+    <title>Testsida — inbäddningar som hålls tillbaka (C5)</title>
+    <style>
+      /* Sajtens egen formgivning. Platshållaren ska ärva den, inte överskugga
+         den — det är hela poängen med inherit och currentColor. */
+      body {
+        font-family: Georgia, serif;
+        color: #2b2118;
+        background: #f5f0e6;
+      }
+      .smal {
+        width: 200px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Testsida — inbäddningar</h1>
+
+    <!--
+      MARKERINGEN. Båda formerna är övertagna av webbläsaren innan bannern ens
+      laddat: ett skript med fel type körs aldrig, och en iframe utan src
+      hämtar ingenting. Bannern behöver därför inte hinna före.
+    -->
+
+    <!-- Skript som ska släppas fram vid marknadsföringssamtycke. -->
+    <script type="text/plain" data-seos-consent="marketing">
+      window.SEOS_TEST_MARKETING = true;
+    </script>
+
+    <!-- Skript för analys, så att kategorierna går att skilja åt. -->
+    <script type="text/plain" data-seos-consent="analytics">
+      window.SEOS_TEST_ANALYTICS = true;
+    </script>
+
+    <!-- Okänd kategori: ska aldrig släppas fram. -->
+    <script type="text/plain" data-seos-consent="hittepa">
+      window.SEOS_TEST_OKAND = true;
+    </script>
+
+    <!-- Ordningen mellan två skript i samma kategori ska hållas. -->
+    <script type="text/plain" data-seos-consent="marketing">
+      window.SEOS_TEST_ORDNING = (window.SEOS_TEST_ORDNING || '') + 'a';
+    </script>
+    <script type="text/plain" data-seos-consent="marketing">
+      window.SEOS_TEST_ORDNING = (window.SEOS_TEST_ORDNING || '') + 'b';
+    </script>
+
+    <!-- Synlig inbäddning med bildförhållande: platshållaren ska ta samma form. -->
+    <iframe
+      id="video"
+      data-seos-consent="marketing"
+      data-seos-src="/tests/fixtures/tom.html"
+      width="640"
+      height="360"
+      title="Video"
+    ></iframe>
+
+    <!-- Smal inbäddning: texten i platshållaren ska falla bort. -->
+    <div class="smal">
+      <iframe
+        id="karta"
+        data-seos-consent="functional"
+        data-seos-src="/tests/fixtures/tom.html"
+        title="Karta"
+      ></iframe>
+    </div>
+
+    <script src="/src/v1/banner.js" async></script>
+  </body>
+</html>
