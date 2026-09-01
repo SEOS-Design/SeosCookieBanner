@@ -2194,12 +2194,43 @@ button:hover {
       sizePlaceholder(ruta, element);
       return ruta;
     }
+    function warnAboutMarkup() {
+      for (const element of document.querySelectorAll("script[data-seos-consent]")) {
+        const typ = (element.getAttribute("type") || "").toLowerCase();
+        if (typ !== "text/plain") {
+          console.warn(
+            '[SEOS] This script has data-seos-consent but type="' + (element.getAttribute("type") || "") + '". It ran immediately and was NOT held back. Add type="text/plain".',
+            element
+          );
+        }
+      }
+      for (const element of document.querySelectorAll("iframe[data-seos-consent]")) {
+        if (element.hasAttribute("data-seos-src")) continue;
+        if (element.hasAttribute("src")) {
+          console.warn(
+            "[SEOS] This iframe has data-seos-consent but its address is still in src, so it loaded immediately. Move the address to data-seos-src.",
+            element
+          );
+        } else {
+          console.warn(
+            "[SEOS] This iframe has data-seos-consent but no data-seos-src, so there is nothing to load when consent is given.",
+            element
+          );
+        }
+      }
+      for (const element of document.querySelectorAll("[data-seos-consent]")) {
+        const nyckel = element.getAttribute("data-seos-consent");
+        if (CATEGORY_KEYS.indexOf(nyckel) === -1) {
+          console.warn(
+            '[SEOS] Unknown consent category "' + nyckel + '". Known categories: ' + CATEGORY_KEYS.join(", ") + ". This element will never be released.",
+            element
+          );
+        }
+      }
+    }
     function embedCategory(element) {
       const nyckel = element.getAttribute("data-seos-consent");
-      if (CATEGORY_KEYS.indexOf(nyckel) === -1) {
-        log("[C5] Okand kategori pa element, slapps inte fram:", nyckel);
-        return null;
-      }
+      if (CATEGORY_KEYS.indexOf(nyckel) === -1) return null;
       return nyckel;
     }
     function isGranted(kategori) {
@@ -2442,6 +2473,7 @@ button:hover {
     }
     function initializeBanner() {
       injectBannerHTML();
+      warnAboutMarkup();
       if (!currentConsent) applyConsentToEmbeds();
       applyDesign();
       const webflowLink = document.getElementById("open-cookie-settings");

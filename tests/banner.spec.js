@@ -6,6 +6,7 @@ const SIDA = {
   tidigLead: '/tests/fixtures/banner-meta-tidig-lead.html',
   kundCss: '/tests/fixtures/banner-kundcss.html',
   inbaddningar: '/tests/fixtures/banner-inbaddningar.html',
+  felmarkt: '/tests/fixtures/banner-felmarkt.html',
 };
 
 /** Registrerar varje forsok att na Facebook, aven de vi blockerar. */
@@ -1927,5 +1928,94 @@ test.describe('C5 steg 1-3: inbaddningar som halls tillbaka', () => {
     await expect(smal).toBeVisible();
     await expect(smal.locator('p')).toBeHidden();
     await expect(smal.getByRole('button')).toBeVisible();
+  });
+});
+
+test.describe('C5 punkt 4: markering som ser ratt ut men inte fungerar', () => {
+  /** Fangar allt bannern varnar om. */
+  function fangaVarningar(page) {
+    const rader = [];
+    page.on('console', (m) => {
+      if (m.type() === 'warning' && m.text().includes('[SEOS]')) rader.push(m.text());
+    });
+    return rader;
+  }
+
+  test('ett skript utan type="text/plain" varnas om - och det kordes', async ({ page }) => {
+    const varningar = fangaVarningar(page);
+    await medSkugga(page);
+    await page.goto(SIDA.felmarkt);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    // Skriptet kordes, trots markeringen. Det ar precis darfor varningen finns:
+    // bannern kan inte stoppa det, bara saga ifran.
+    expect(await page.evaluate(() => window.SEOS_TEST_KORDE_ANDA)).toBe(true);
+
+    const traff = varningar.find((v) => v.includes('type="text/plain"'));
+    expect(traff).toBeTruthy();
+    expect(traff).toContain('NOT held back');
+  });
+
+  test('en iframe med adressen kvar i src varnas om', async ({ page }) => {
+    const varningar = fangaVarningar(page);
+    await medSkugga(page);
+    await page.goto(SIDA.felmarkt);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    expect(varningar.find((v) => v.includes('still in src'))).toBeTruthy();
+  });
+
+  test('en iframe helt utan adress varnas om', async ({ page }) => {
+    const varningar = fangaVarningar(page);
+    await medSkugga(page);
+    await page.goto(SIDA.felmarkt);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    expect(varningar.find((v) => v.includes('no data-seos-src'))).toBeTruthy();
+  });
+
+  test('en okand kategori varnas om, och namnger de kanda', async ({ page }) => {
+    const varningar = fangaVarningar(page);
+    await medSkugga(page);
+    await page.goto(SIDA.felmarkt);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    const traff = varningar.find((v) => v.includes('reklamgrejer'));
+    expect(traff).toBeTruthy();
+    // Varningen ska saga vad som ar giltigt, inte bara att det ar fel.
+    expect(traff).toContain('necessary, analytics, functional, marketing');
+  });
+
+  test('en okand kategori slapps aldrig fram, aven vid acceptera alla', async ({ page }) => {
+    await medSkugga(page);
+    await page.goto(SIDA.felmarkt);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+    await knapp.acceptera(page).click();
+
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => window.SEOS_TEST_ALDRIG)).toBeUndefined();
+  });
+
+  test('en sajt UTAN markering varnas aldrig om', async ({ page }) => {
+    const varningar = fangaVarningar(page);
+    await medSkugga(page);
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    // Ett larm som gar pa sajter som inte anvander funktionen slutar betyda
+    // nagot - samma lardom som byggkontrollen och cookie-skannern.
+    expect(varningar).toEqual([]);
+  });
+
+  test('en ratt markt sida varnas bara om det som faktiskt ar fel', async ({ page }) => {
+    const varningar = fangaVarningar(page);
+    await medSkugga(page);
+    await page.goto(SIDA.inbaddningar);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    // Den sidan har fyra korrekt markta element OCH ett med kategorin
+    // "hittepa", med flit. Exakt en varning ska komma, om just det.
+    expect(varningar).toHaveLength(1);
+    expect(varningar[0]).toContain('hittepa');
   });
 });

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8" />
+    <title>Testsida — märkning som ser rätt ut men inte fungerar (C5 punkt 4)</title>
+  </head>
+  <body>
+    <h1>Felmärkta inbäddningar</h1>
+
+    <!--
+      FEL 1: data-seos-consent men INGET type="text/plain".
+      Webbläsaren kör skriptet direkt. Bannern kan inte göra något åt det —
+      när den läser sidan har skriptet redan körts. Detta är det värsta felet,
+      eftersom man tror att man blockerat en spårare.
+    -->
+    <script data-seos-consent="marketing">
+      window.SEOS_TEST_KORDE_ANDA = true;
+    </script>
+
+    <!--
+      FEL 2: iframe med data-seos-consent, men adressen ligger kvar i src.
+      Den laddas direkt.
+    -->
+    <iframe
+      id="kvar-i-src"
+      data-seos-consent="marketing"
+      src="/tests/fixtures/tom.html"
+      title="Laddar ändå"
+    ></iframe>
+
+    <!--
+      FEL 3: iframe med data-seos-consent men ingen adress alls.
+      Det finns inget att ladda när samtycket kommer.
+    -->
+    <iframe id="utan-adress" data-seos-consent="marketing" title="Ingen adress"></iframe>
+
+    <!--
+      FEL 4: en kategori bannern inte känner igen.
+      Elementet släpps aldrig fram, oavsett vad besökaren svarar.
+    -->
+    <script type="text/plain" data-seos-consent="reklamgrejer">
+      window.SEOS_TEST_ALDRIG = true;
+    </script>
+
+    <script src="/src/v1/banner.js" async></script>
+  </body>
+</html>

@@ -1562,16 +1562,90 @@ import bannerCss from './style.css';
   }
 
   //------------------------------------------------------------------------
+  // MARKERINGEN SOM RUTIN (C5 punkt 4)
+  //------------------------------------------------------------------------
+  //
+  // Tre satt att marka fel sa att det SER UT att fungera. Alla tre var tysta
+  // innan den har kontrollen fanns, och alla tre ger samma intryck: "jag har
+  // blockerat den dar spararen." Utan varning upptacks det aldrig.
+  //
+  //   1. <script data-seos-consent="x"> UTAN type="text/plain"
+  //      Vanligaste och varsta felet. Webblasaren kor skriptet direkt, precis
+  //      som om markeringen inte fanns. Bannern kan inte gora nagot at det -
+  //      nar den laser sidan har skriptet redan korrts.
+  //
+  //   2. <iframe data-seos-consent="x"> UTAN data-seos-src
+  //      Antingen har adressen lamnats kvar i src (och laddas direkt), eller
+  //      sa saknas den helt (och rutan blir tom for alltid).
+  //
+  //   3. En kategori bannern inte kanner igen. Elementet slapps aldrig fram,
+  //      oavsett vad besokaren svarar.
+  //
+  // ⚠️ console.warn, inte log(). log() ar avstangd i drift (DEBUG = false), och
+  // en varning som ingen ser ar samma sak som ingen varning. Samma linje som
+  // publish-design, dar geometri avvisas med en forklaring i stallet for att
+  // tyst falla bort.
+  //
+  // Tyst pa en sajt UTAN markering: kontrollen letar bara efter element som
+  // redan bar data-seos-consent, sa den kan inte skalla pa en kund som inte
+  // anvander funktionen.
+
+  function warnAboutMarkup() {
+    for (const element of document.querySelectorAll('script[data-seos-consent]')) {
+      const typ = (element.getAttribute('type') || '').toLowerCase();
+      if (typ !== 'text/plain') {
+        console.warn(
+          '[SEOS] This script has data-seos-consent but type="' +
+            (element.getAttribute('type') || '') +
+            '". It ran immediately and was NOT held back. Add type="text/plain".',
+          element,
+        );
+      }
+    }
+
+    for (const element of document.querySelectorAll('iframe[data-seos-consent]')) {
+      if (element.hasAttribute('data-seos-src')) continue;
+      if (element.hasAttribute('src')) {
+        console.warn(
+          '[SEOS] This iframe has data-seos-consent but its address is still in src, ' +
+            'so it loaded immediately. Move the address to data-seos-src.',
+          element,
+        );
+      } else {
+        console.warn(
+          '[SEOS] This iframe has data-seos-consent but no data-seos-src, ' +
+            'so there is nothing to load when consent is given.',
+          element,
+        );
+      }
+    }
+
+    for (const element of document.querySelectorAll('[data-seos-consent]')) {
+      const nyckel = element.getAttribute('data-seos-consent');
+      if (CATEGORY_KEYS.indexOf(nyckel) === -1) {
+        console.warn(
+          '[SEOS] Unknown consent category "' +
+            nyckel +
+            '". Known categories: ' +
+            CATEGORY_KEYS.join(', ') +
+            '. This element will never be released.',
+          element,
+        );
+      }
+    }
+  }
+
+  //------------------------------------------------------------------------
   // AKTIVERINGEN
   //------------------------------------------------------------------------
 
   /** Vad elementet vantar pa. Okand kategori -> stannar tillbakahallet. */
   function embedCategory(element) {
     const nyckel = element.getAttribute('data-seos-consent');
-    if (CATEGORY_KEYS.indexOf(nyckel) === -1) {
-      log('[C5] Okand kategori pa element, slapps inte fram:', nyckel);
-      return null;
-    }
+    // Varningen ligger i warnAboutMarkup(), som kors EN gang och syns i
+    // konsolen. Har vore den tyst (log ar av i drift) och skulle dessutom
+    // upprepas vid varje samtyckesandring.
+    if (CATEGORY_KEYS.indexOf(nyckel) === -1) return null;
     return nyckel;
   }
 
@@ -1934,6 +2008,10 @@ import bannerCss from './style.css';
 
   function initializeBanner() {
     injectBannerHTML();
+
+    // Sager ifran om en markering ser ratt ut men inte fungerar. Tyst pa en
+    // sajt utan markering.
+    warnAboutMarkup();
 
     // Ritar platshallarna for den som annu inte svarat. Utan det hade en
     // tillbakahallen inbaddning varit ett tomt halrum tills besokaren klickat,
