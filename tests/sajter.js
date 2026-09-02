@@ -54,6 +54,22 @@ module.exports = [
     tillatnaSparare: ['google-analytics.com', 'analytics.google.com'],
   },
   {
+    namn: 'leadingcar',
+    url: 'https://www.leadingcar.se/',
+    skript: '/v1/banner.js',
+    // ENGELSK sajt (<html lang="en">), sa bannern ritar sina engelska texter.
+    // Star det "Acceptera alla" har larmar overvakningen vid varje korning.
+    accepteraText: 'Accept all',
+    // Sajtens egen valutavaljare. Satts fore samtycke men bar bara vilken
+    // valuta priserna visas i - LEK:s undantag for det besokaren efterfragat.
+    // Samma bedomning som NEXT_LOCALE nedan.
+    tillatnaCookies: ['currency'],
+    // Next.js + Sanity, gtag direkt. Consent Mode default denied ligger inline
+    // i deras layout.tsx, sa GA skriver inga cookies fore samtycke - uppmatt
+    // 2026-09-02.
+    tillatnaSparare: ['google-analytics.com', 'analytics.google.com'],
+  },
+  {
     namn: 'tillvaxtstod',
     url: 'https://www.tillvaxtstod.se/',
     // Kor fortfarande den gamla filen. Byts till /v1/banner.js i samma veva
