@@ -202,6 +202,7 @@ import bannerCss from './style.css';
     'radius-sm',
     'radius-md',
     'radius-lg',
+    'toggle-radius',
   ]);
 
   // url() stangs ute aven har: ett CSS-varde som hamtar nagot fran en adress
@@ -2098,6 +2099,47 @@ import bannerCss from './style.css';
     }
   }
 
+  //------------------------------------------------------------------------
+  // FOTLANKARNA PA KUNDENS SIDA
+  //------------------------------------------------------------------------
+  //
+  // Kunden lagger sjalv in lankarna i sin sidfot. Bannern skapar dem inte: den
+  // vet inte var de hor hemma, hur de ska se ut eller vad de ska heta.
+  //
+  // ⚠️ EVENT DELEGATION, INTE DIREKTBINDNING. Koden slog tidigare upp fastet
+  // EN GANG vid init och band lyssnaren till sjalva elementet. Pa en sajt som
+  // ritar om sin sidfot - leadingcar kor React - forsvann lyssnaren tyst vid
+  // navigering: ingen felutskrift, lanken slutade bara fungera. Lyssnaren
+  // ligger nu pa document och slar upp fastet vid KLICKET i stallet, sa det
+  // spelar ingen roll nar lanken skapas eller hur manga ganger.
+
+  const FOOTER_LINKS = {
+    'open-cookie-settings': openSettings,
+    'open-cookie-policy': showPolicy,
+  };
+
+  // Byggd ur listan ovan och aldrig skriven for hand - en ny rad dar racker.
+  const FOOTER_LINK_SELECTOR = Object.keys(FOOTER_LINKS)
+    .map((id) => '#' + id)
+    .join(', ');
+
+  function bindFooterLinks() {
+    document.addEventListener('click', (event) => {
+      const target = event.target;
+
+      // Typkontrollen: ett klick kan komma fran nagot som inte ar ett element.
+      if (!target || typeof target.closest !== 'function') return;
+
+      // closest() och inte target sjalv: fastet kan bara en ikon eller ett
+      // <span>, och da ar traffen barnet och inte lanken.
+      const link = target.closest(FOOTER_LINK_SELECTOR);
+      if (!link) return;
+
+      event.preventDefault();
+      FOOTER_LINKS[link.id]();
+    });
+  }
+
   function initializeBanner() {
     injectBannerHTML();
 
@@ -2116,14 +2158,8 @@ import bannerCss from './style.css';
     // Designen kan ha hunnit fram innan vardelementet fanns. Applicera nu.
     applyDesign();
 
-    // Ligger pa KUNDENS sida, utanfor skuggan - darfor document och inte el().
-    const webflowLink = document.getElementById('open-cookie-settings');
-    if (webflowLink) {
-      webflowLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        openSettings();
-      });
-    }
+    // Fastena i kundens sidfot. Ligger utanfor skuggan - darfor document.
+    bindFooterLinks();
 
     setTimeout(async () => {
       getOrCreateClientId();

@@ -10,6 +10,7 @@ const SIDA = {
   vakt: '/tests/fixtures/banner-vakt.html',
   vaktMeta: '/tests/fixtures/banner-vakt-meta.html',
   bieffekter: '/tests/fixtures/vakt-bieffekter.html',
+  fotlankar: '/tests/fixtures/banner-fotlankar.html',
 };
 
 /** Registrerar varje forsok att na Facebook, aven de vi blockerar. */
@@ -968,6 +969,80 @@ test.describe('Design fran databasen (C1 steg 1)', () => {
     // Tidsstampeln gor adressen unik sa CDN:et inte kan svara ur cachen.
     expect(adresser[0]).toContain('farsk=');
     expect(await bannerBakgrund(page)).toBe(BEIGE);
+  });
+
+  // --accent-hover var en DOD VARIABEL fram till 2026-09-10: den validerades,
+  // accepterades av publish-design och stod publicerad for tva kunder - men
+  // ingen CSS-regel laste den. Faller nagot av de har tva testerna ar den dod
+  // igen, och det syns inte pa nagot annat satt.
+  test('accent-hover anvands som hoverfarg nar den ar satt', async ({ page }) => {
+    await medSkugga(page);
+    await medDesign(page, { 'accent-color': '#941413', 'accent-hover': '#6f0005' });
+
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    const knapp = page.getByRole('button', { name: 'Acceptera alla' });
+    const bakgrund = () =>
+      knapp.evaluate((el) => getComputedStyle(el).backgroundColor);
+
+    // Utan hovring: knappens vanliga farg. Hoverfargen far inte lacka ut pa
+    // det normala tillstandet.
+    expect(await bakgrund()).toBe('rgb(148, 20, 19)');
+
+    // Med hovring: sajtens EXAKTA hoverfarg, inte en filtrerad approximation.
+    // expect.poll och inte ett rakt varde: knappen har transition 0.2s, och en
+    // avlasning direkt efter hover traffar mitt i overgangen.
+    await knapp.hover();
+    await expect.poll(bakgrund).toBe('rgb(111, 0, 5)');
+  });
+
+  test('utan accent-hover ar variabeln odefinierad och knappen behaller sin farg', async ({
+    page,
+  }) => {
+    await medSkugga(page);
+    await medDesign(page, { 'accent-color': '#941413' });
+
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    // Inget basvarde: satter ingen sajt fargen ska den vara tom, sa att
+    // var(--accent-hover, var(--accent-color)) faller tillbaka pa knappfargen.
+    expect(await cssVariabel(page, '--accent-hover')).toBe('');
+  });
+
+  // Reglagen delade tidigare --radius-md med KNAPPARNA. En kund som ville ha
+  // kantiga knappar fick kantiga reglage pa kopet.
+  test('reglagets radie gar att satta utan att knapparna foljer med', async ({ page }) => {
+    await medSkugga(page);
+    await medDesign(page, { 'radius-md': '2px', 'toggle-radius': '999px' });
+
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    const radier = await page.evaluate(() => {
+      const skugga = window.skugga();
+      return {
+        knapp: getComputedStyle(skugga.querySelector('.btn-save')).borderRadius,
+        reglage: getComputedStyle(skugga.querySelector('.toggle-switch')).borderRadius,
+      };
+    });
+
+    expect(radier.knapp).toBe('2px');
+    expect(radier.reglage).toBe('999px');
+  });
+
+  test('utan toggle-radius foljer reglaget knapparnas radie, precis som forut', async ({ page }) => {
+    await medSkugga(page);
+    await medDesign(page, { 'radius-md': '2px' });
+
+    await page.goto(SIDA.utanPixel);
+    await expect(page.locator('#cookie-banner')).toBeVisible();
+
+    const reglage = await page.evaluate(
+      () => getComputedStyle(window.skugga().querySelector('.toggle-switch')).borderRadius
+    );
+    expect(reglage).toBe('2px');
   });
 });
 
@@ -2357,5 +2432,58 @@ test.describe('C5 punkt 5: vaktens bieffekter', () => {
       return ut;
     });
     expect(fel).toEqual(['ok', 'ok', 'ok', 'ok']);
+  });
+});
+
+test.describe('Fotlankarna pa kundens sida', () => {
+  /** Fotlankarna ar till for den som redan svarat, sa bannern ska vara borta. */
+  async function efterSamtycke(page) {
+    await page.goto(SIDA.fotlankar);
+    await knapp.acceptera(page).click();
+    await expect(page.locator('#cookie-banner')).toBeHidden();
+  }
+
+  test('installningslanken oppnar installningarna', async ({ page }) => {
+    await efterSamtycke(page);
+
+    await page.locator('#open-cookie-settings').click();
+    await expect(page.locator('#cookie-settings')).toBeVisible();
+  });
+
+  test('policylanken oppnar policyn aven nar klicket traffar ett barnelement', async ({ page }) => {
+    await efterSamtycke(page);
+
+    // Traffar spannet inuti lanken, inte lanken sjalv.
+    await page.locator('#policytext').click();
+    await expect(page.locator('#cookie-policy')).toBeVisible();
+  });
+
+  // REGRESSIONEN. Direktbindningen slog upp fastet en gang vid init, sa en
+  // omritad sidfot tappade lyssnaren utan ett ljud. Faller det har testet ar
+  // event delegation borta.
+  test('bada lankarna fungerar efter att sidfoten ritats om', async ({ page }) => {
+    await efterSamtycke(page);
+
+    await page.locator('#rita-om-sidfoten').click();
+
+    await page.locator('#open-cookie-settings').click();
+    await expect(page.locator('#cookie-settings')).toBeVisible();
+
+    await page
+      .locator('#cookie-settings')
+      .getByRole('button', { name: 'Spara inställningar' })
+      .click();
+    await expect(page.locator('#cookie-settings')).toBeHidden();
+
+    await page.locator('#policytext').click();
+    await expect(page.locator('#cookie-policy')).toBeVisible();
+  });
+
+  test('ett klick nagon annanstans pa sidan oppnar ingenting', async ({ page }) => {
+    await efterSamtycke(page);
+
+    await page.locator('h1').click();
+    await expect(page.locator('#cookie-settings')).toBeHidden();
+    await expect(page.locator('#cookie-policy')).toBeHidden();
   });
 });

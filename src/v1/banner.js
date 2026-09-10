@@ -688,7 +688,6 @@
   --text-main: #ffffff;
   --text-muted: #9ca3af;
   --accent-color: #686868;
-  --accent-hover: #6366f1;
   --bg-dark-btn: #111827;
   --border-color: rgba(255, 255, 255, 0.2);
   --btn-border: rgba(255, 255, 255, 0.5);
@@ -765,6 +764,12 @@
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
+
+  /* Reglagets egen radie. Lag tidigare pa --radius-md, som ocksa styr
+     KNAPPARNA - en kund som ville ha kantiga knappar fick kantiga reglage pa
+     kopet. Basvardet ar samma 12px, och pa ett 24px hogt reglage ar det exakt
+     halva hojden, alltsa en helt rund pill precis som forut. */
+  --toggle-radius: var(--radius-md);
 
   /* Avstandsskala, 320px -> 1240px. Geometri: lika overallt. */
   --space-xs: clamp(0.375rem, 0.35rem + 0.1vw, 0.5rem);
@@ -1000,6 +1005,21 @@ button:hover {
   filter: var(--btn-hover-filter);
 }
 
+/* ACCENTKNAPPARNAS HOVRING
+   Satts --accent-hover anvands sajtens EXAKTA hoverfarg. Satts den inte
+   anvands knappens egen farg, vilket ger exakt samma utseende som forut -
+   effekten kommer da helt fran filtret ovan. Variabeln har darfor inget
+   basvarde: den ska vara odefinierad tills en sajt satter den.
+
+   ⚠️ Satts fargen ska --btn-hover-filter: none sattas i samma designfil.
+   Annars laggs filtret ovanpa den exakta fargen och resultatet blir morkare
+   an sajtens egen hovring. */
+.btn-save:hover,
+.btn-reject:hover,
+.cookie-settings-btn:hover {
+  background-color: var(--accent-hover, var(--accent-color));
+}
+
 .btn-customize:hover,
 .btn-back:hover {
   background-color: var(--btn-secondary-hover-bg);
@@ -1081,7 +1101,7 @@ button:hover {
   border: none;
   display: block;
   background: var(--toggle-switch-bg);
-  border-radius: var(--radius-md);
+  border-radius: var(--toggle-radius);
   position: relative;
   cursor: pointer;
   flex-shrink: 0;
@@ -1451,7 +1471,8 @@ button:hover {
       "header-font",
       "radius-sm",
       "radius-md",
-      "radius-lg"
+      "radius-lg",
+      "toggle-radius"
     ]);
     const UNSAFE_VALUE = /url\(|expression\(|javascript:|@import|[<>{}\\;]/i;
     const CATEGORY_KEYS = ["necessary", "analytics", "functional", "marketing"];
@@ -2544,18 +2565,27 @@ button:hover {
         setConsent(payload);
       }
     }
+    const FOOTER_LINKS = {
+      "open-cookie-settings": openSettings,
+      "open-cookie-policy": showPolicy
+    };
+    const FOOTER_LINK_SELECTOR = Object.keys(FOOTER_LINKS).map((id) => "#" + id).join(", ");
+    function bindFooterLinks() {
+      document.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!target || typeof target.closest !== "function") return;
+        const link = target.closest(FOOTER_LINK_SELECTOR);
+        if (!link) return;
+        event.preventDefault();
+        FOOTER_LINKS[link.id]();
+      });
+    }
     function initializeBanner() {
       injectBannerHTML();
       warnAboutMarkup();
       if (!currentConsent) applyConsentToEmbeds();
       applyDesign();
-      const webflowLink = document.getElementById("open-cookie-settings");
-      if (webflowLink) {
-        webflowLink.addEventListener("click", (e) => {
-          e.preventDefault();
-          openSettings();
-        });
-      }
+      bindFooterLinks();
       setTimeout(async () => {
         getOrCreateClientId();
         loadAndApplySavedConsent();

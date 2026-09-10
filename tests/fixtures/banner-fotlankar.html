@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8" />
+    <title>Testsida — fotlankar i sidfoten</title>
+  </head>
+  <body>
+    <h1>Testsida</h1>
+    <p>Tva fotlankar, och en knapp som ritar om hela sidfoten.</p>
+
+    <button id="rita-om-sidfoten">Rita om sidfoten</button>
+
+    <footer id="sidfot">
+      <a href="#" id="open-cookie-settings">Cookieinstallningar</a>
+      <!-- Texten ligger i ett barn med flit: klicket traffar da spannet och
+           inte lanken, vilket ar precis vad closest() finns for. -->
+      <a href="#" id="open-cookie-policy"><span id="policytext">Cookiepolicy</span></a>
+    </footer>
+
+    <script>
+      // Speglar leadingcar, dar React ersatter hela sidfoten vid navigering.
+      // Med direktbindning forsvann lyssnaren tyst just har.
+      document.getElementById('rita-om-sidfoten').addEventListener('click', () => {
+        const gammal = document.getElementById('sidfot');
+        gammal.replaceWith(gammal.cloneNode(true));
+      });
+    </script>
+
+    <script src="/src/v1/banner.js" async></script>
+  </body>
+</html>
