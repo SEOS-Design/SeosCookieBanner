@@ -2118,9 +2118,20 @@ import bannerCss from './style.css';
     'open-cookie-policy': showPolicy,
   };
 
+  // Varje faste nas pa TVA satt:
+  //
+  //   id="open-cookie-policy"      en gang per sida - ett id far inte upprepas
+  //   href="#open-cookie-policy"   hur manga ganger som helst, och gar att
+  //                                skriva i vilket CMS som helst
+  //
+  // Adressen kom till 2026-09-10 for leadingcar. Deras sidfot ritar lankar ur
+  // Sanity, dar en lank bara har text och adress - inget id. Och deras
+  // integritetspolicy behovde samma faste en andra gang pa samma sida, vilket
+  // ett id inte tillater.
+  //
   // Byggd ur listan ovan och aldrig skriven for hand - en ny rad dar racker.
   const FOOTER_LINK_SELECTOR = Object.keys(FOOTER_LINKS)
-    .map((id) => '#' + id)
+    .flatMap((key) => ['#' + key, 'a[href="#' + key + '"]'])
     .join(', ');
 
   function bindFooterLinks() {
@@ -2136,7 +2147,14 @@ import bannerCss from './style.css';
       if (!link) return;
 
       event.preventDefault();
-      FOOTER_LINKS[link.id]();
+
+      // Vilket av fastena som traffades - via id:t eller via adressen. En
+      // lank kan ha ett eget id for nagot helt annat och anda na oss via
+      // adressen, sa id:t ensamt racker inte som svar.
+      const key = Object.keys(FOOTER_LINKS).find(
+        (k) => link.id === k || link.getAttribute('href') === '#' + k
+      );
+      FOOTER_LINKS[key]();
     });
   }
 

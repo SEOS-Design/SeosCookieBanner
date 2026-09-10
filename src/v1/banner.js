@@ -2569,7 +2569,7 @@ button:hover {
       "open-cookie-settings": openSettings,
       "open-cookie-policy": showPolicy
     };
-    const FOOTER_LINK_SELECTOR = Object.keys(FOOTER_LINKS).map((id) => "#" + id).join(", ");
+    const FOOTER_LINK_SELECTOR = Object.keys(FOOTER_LINKS).flatMap((key) => ["#" + key, 'a[href="#' + key + '"]']).join(", ");
     function bindFooterLinks() {
       document.addEventListener("click", (event) => {
         const target = event.target;
@@ -2577,7 +2577,10 @@ button:hover {
         const link = target.closest(FOOTER_LINK_SELECTOR);
         if (!link) return;
         event.preventDefault();
-        FOOTER_LINKS[link.id]();
+        const key = Object.keys(FOOTER_LINKS).find(
+          (k) => link.id === k || link.getAttribute("href") === "#" + k
+        );
+        FOOTER_LINKS[key]();
       });
     }
     function initializeBanner() {

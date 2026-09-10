@@ -2479,6 +2479,39 @@ test.describe('Fotlankarna pa kundens sida', () => {
     await expect(page.locator('#cookie-policy')).toBeVisible();
   });
 
+  // ADRESSEN, sedan 2026-09-10. En CMS-lank har sallan ett id, och ett id far
+  // bara finnas en gang per sida.
+  test('en lank via adress oppnar installningarna, aven via ett barnelement', async ({ page }) => {
+    await efterSamtycke(page);
+
+    await page.locator('#installningstext').click();
+    await expect(page.locator('#cookie-settings')).toBeVisible();
+  });
+
+  test('policyn kan lankas tva ganger pa samma sida', async ({ page }) => {
+    await efterSamtycke(page);
+
+    // Forst via id:t i sidfoten.
+    await page.locator('#policytext').click();
+    await expect(page.locator('#cookie-policy')).toBeVisible();
+    await page.evaluate(() => window.closePolicy());
+    await expect(page.locator('#cookie-policy')).toBeHidden();
+
+    // Sedan via adressen i texten - pa en lank som har ett helt annat id.
+    await page.locator('#nagot-annat').click();
+    await expect(page.locator('#cookie-policy')).toBeVisible();
+  });
+
+  test('en adress-lank hoppar inte till toppen och andrar inte adressfaltet', async ({ page }) => {
+    await efterSamtycke(page);
+
+    await page.locator('#nagot-annat').click();
+    await expect(page.locator('#cookie-policy')).toBeVisible();
+
+    // Utan preventDefault hade adressen fatt #open-cookie-policy pa slutet.
+    expect(await page.evaluate(() => location.hash)).toBe('');
+  });
+
   test('ett klick nagon annanstans pa sidan oppnar ingenting', async ({ page }) => {
     await efterSamtycke(page);
 
