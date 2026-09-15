@@ -824,9 +824,10 @@ test.describe('Design fran databasen (C1 steg 1)', () => {
     expect(await bannerBakgrund(page)).toBe(BEIGE);
   });
 
-  test('bannern visas anda nar configen inte gar att hamta', async ({ page }) => {
-    // En banner som uteblir for att fargerna inte gick att hamta vore ett
-    // mycket varre fel an en banner i standardfarger.
+  test('ingen banner nar configen inte gar att hamta - aldrig i fel farger', async ({ page }) => {
+    // Björns beslut 2026-09-15: hellre ingen banner än en i fel färger. Förut
+    // krävde just det här testet motsatsen. Går configen inte att hämta går
+    // samtycket inte heller att spara - bevisloggen ligger i samma API.
     const synligaFel = [];
     page.on('pageerror', (e) => synligaFel.push(e.message));
 
@@ -837,21 +838,129 @@ test.describe('Design fran databasen (C1 steg 1)', () => {
     await page.route('**/config/**', (route) => route.abort('failed'));
 
     await page.goto(SIDA.utanPixel);
-    await expect(page.locator('#cookie-banner')).toBeVisible({ timeout: 3000 });
-    expect(await bannerBakgrund(page)).not.toBe(BEIGE);
+    await page.waitForTimeout(1500);
+    await expect(page.locator('#cookie-banner')).toBeHidden();
     expect(synligaFel).toEqual([]);
   });
 
-  test('tidsgransen haller nar API:t tar emot men aldrig svarar', async ({ page }) => {
-    // Utan AbortController hade bannern hangt sig har - och en osynlig banner
-    // ar samma sak som ingen banner alls.
+  test('en avstangd sajt (404) far ingen banner', async ({ page }) => {
+    // Förut ritades en banner i standardfärger som samlade samtycken som
+    // aldrig sparades. Se OFFBOARDING-D2.md.
+    await medSkugga(page);
+    await page.addInitScript((k) => {
+      window.SEOS_SITE_KEY = k;
+    }, NYCKEL);
+    await page.route('**/config/**', (route) =>
+      route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ message: 'Not found' }),
+      })
+    );
+
+    await page.goto(SIDA.utanPixel);
+    await page.waitForTimeout(1500);
+    await expect(page.locator('#cookie-banner')).toBeHidden();
+  });
+
+  test('API:t svarar aldrig: ingen banner, men ett klick oppnar rutan anda', async ({ page }) => {
+    // Bannern som dyker upp av sig själv väntar in rätt design. Men den som
+    // SJÄLV klickar - ofta för att återkalla ett samtycke - får rutan efter
+    // 3 s även utan design. Björns beslut 2026-09-15.
+    const synligaFel = [];
+    page.on('pageerror', (e) => synligaFel.push(e.message));
+
     await medSkugga(page);
     await medDesign(page, {}, { hangDig: true });
 
-    const start = Date.now();
+    await page.goto(SIDA.utanPixel);
+    await page.waitForTimeout(4000);
+    await expect(page.locator('#cookie-banner')).toBeHidden();
+
+    await page.evaluate(() => {
+      window.openSettings();
+    });
+    await expect(page.locator('#cookie-settings')).toBeVisible({ timeout: 5000 });
+    expect(synligaFel).toEqual([]);
+  });
+
+  test('en kall databas ger ratt farg - bannern vantar in svaret', async ({ page }) => {
+    // Buggen Björn såg på leadingcar 2026-09-07. Efter en API-deploy är
+    // CDN-cachen tom och svaret måste hämtas ur en sovande databas - uppmätt
+    // 1,2 s. Med den gamla gränsen på 800 ms visades bannern i standardfärger,
+    // och det riktiga svaret kastades när det kom.
+    await medSkugga(page);
+    await medDesign(page, { 'bg-main': '#f5f0e6' }, { fordrojning: 1200 });
+
     await page.goto(SIDA.utanPixel);
     await expect(page.locator('#cookie-banner')).toBeVisible({ timeout: 5000 });
-    expect(Date.now() - start).toBeLessThan(4000);
+    expect(await bannerBakgrund(page)).toBe(BEIGE);
+  });
+
+  test('ett svar som drojer mer an 3 s: bannern visas forst da, i ratt farg', async ({
+    page,
+  }) => {
+    // Ingen gräns för när bannern ger upp och visar standardfärger - den
+    // väntar så länge anropet pågår.
+    await medSkugga(page);
+    await medDesign(page, { 'bg-main': '#f5f0e6' }, { fordrojning: 4500 });
+
+    await page.goto(SIDA.utanPixel);
+    await page.waitForTimeout(3500);
+    await expect(page.locator('#cookie-banner')).toBeHidden();
+
+    await expect(page.locator('#cookie-banner')).toBeVisible({ timeout: 5000 });
+    expect(await bannerBakgrund(page)).toBe(BEIGE);
+  });
+
+  test('ett sent svar ritar inte om installningarna - besokarens val star kvar', async ({
+    page,
+  }) => {
+    // En ny besökare klickar på fotlänken innan svaret kommit. Efter 3 s
+    // öppnas rutan med bannerns egna kort, och besökaren slår på ett reglage.
+    // Hade svaret sedan fått rita om korten, hade reglaget tyst slagits av -
+    // och bevisloggen fått ett annat svar än det besökaren gav. Svaret nedan
+    // gör dessutom marknadsföring till ett besked, så en omritning syns även
+    // på antalet reglage. Och bannern får inte lägga sig över rutan.
+    await medSkugga(page);
+    await page.addInitScript((k) => {
+      window.SEOS_SITE_KEY = k;
+    }, NYCKEL);
+    await page.route('**/config/**', async (route) => {
+      await new Promise((r) => setTimeout(r, 4500));
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          design: { 'bg-main': '#f5f0e6' },
+          categories: [
+            { key: 'necessary', is_required: true, visibility: 'toggle' },
+            { key: 'analytics', is_required: false, visibility: 'toggle' },
+            { key: 'functional', is_required: false, visibility: 'toggle' },
+            { key: 'marketing', is_required: false, visibility: 'notice' },
+          ],
+        }),
+      });
+    });
+
+    await page.goto(SIDA.fotlankar);
+    await page.locator('#sidfot #open-cookie-settings').click();
+    await expect(page.locator('#cookie-settings')).toBeVisible({ timeout: 5000 });
+
+    const marketingToggle = page.locator('#marketing-toggle');
+    await page
+      .locator('#cookie-settings .cookie-category-card')
+      .filter({ has: marketingToggle })
+      .click();
+    await expect(marketingToggle).toHaveAttribute('aria-checked', 'true');
+
+    // Vänta tills svaret bevisligen har kommit fram.
+    await expect.poll(() => cssVariabel(page, '--bg-main'), { timeout: 5000 }).toBe('#f5f0e6');
+
+    await expect(marketingToggle).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('#settings-container .category-notice')).toHaveCount(0);
+    await expect(page.locator('#cookie-settings')).toBeVisible();
+    await expect(page.locator('#cookie-banner')).toBeHidden();
   });
 
   test('geometri gar INTE att satta per sajt', async ({ page }) => {
@@ -1150,7 +1259,13 @@ test.describe('Kategorier fran databasen (C1 steg 2)', () => {
     }, NYCKEL);
     await page.route('**/config/**', (route) => route.abort('failed'));
 
-    await oppnaInstallningar(page);
+    // Bannern visas inte utan config sedan 2026-09-15, så rutan öppnas som
+    // en fotlänk gör det.
+    await page.goto(SIDA.utanPixel);
+    await page.evaluate(() => {
+      window.openSettings();
+    });
+    await expect(page.locator('#cookie-settings')).toBeVisible();
     await expect(kort(page)).toHaveCount(4);
   });
 
@@ -2120,6 +2235,17 @@ test.describe('C5 punkt 5: vakten', () => {
     await page.route('**://static.hotjar.com/**', (r) => r.fulfill(svar('SEOS_TEST_HOTJAR_KORDE')));
     await page.route('**://exempel-tredjepart.se/**', (r) =>
       r.fulfill(svar('SEOS_TEST_OKAND_KORDE')),
+    );
+
+    // Fixturen har en site key i taggen. Utan den här raden gick
+    // config-anropet till produktions-API:t, som svarade 404 för den okända
+    // nyckeln - upptäckt 2026-09-15, när ett 404 slutade ge en banner.
+    await page.route('**/config/**', (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ design: {} }),
+      }),
     );
   }
 

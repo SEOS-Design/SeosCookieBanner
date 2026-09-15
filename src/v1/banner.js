@@ -1504,7 +1504,8 @@ button:hover {
         visibility: found.get(key).visibility
       }));
     }
-    const CONFIG_TIMEOUT_MS = 800;
+    const CONFIG_ABORT_MS = 15e3;
+    const CONFIG_WAIT_MS = 3e3;
     let loadedDesign = null;
     let loadedCategories = null;
     let loadedTexts = null;
@@ -1566,13 +1567,13 @@ button:hover {
     async function fetchConfig() {
       if (!SITE_KEY) return EMPTY_CONFIG;
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), CONFIG_TIMEOUT_MS);
+      const timer = setTimeout(() => controller.abort(), CONFIG_ABORT_MS);
       try {
         const url = `${API_BASE_URL}/config/${encodeURIComponent(SITE_KEY)}` + (isFreshMode() ? `?farsk=${Date.now()}` : "");
         const response = await fetch(url, { signal: controller.signal });
-        if (!response.ok) return EMPTY_CONFIG;
+        if (!response.ok) return null;
         const data = await response.json();
-        if (!data || typeof data !== "object") return EMPTY_CONFIG;
+        if (!data || typeof data !== "object") return null;
         const design = data.design;
         const cleaned = {};
         if (design && typeof design === "object") {
@@ -1591,24 +1592,40 @@ button:hover {
         };
       } catch (error) {
         log("[Config] Kunde inte hamta config:", error && error.message);
-        return EMPTY_CONFIG;
+        return null;
       } finally {
         clearTimeout(timer);
       }
     }
     let configPromise = null;
-    function ensureConfig() {
+    let configWait = null;
+    let configLoaded = false;
+    let defaultCardsShown = false;
+    function loadConfig() {
       if (!configPromise) {
         configPromise = fetchConfig().then((config) => {
+          if (!config) return false;
           loadedDesign = config.design;
-          loadedCategories = config.categories;
-          loadedTexts = config.texts;
           applyDesign();
-          applyCategories();
-          return config;
+          if (!defaultCardsShown) {
+            loadedCategories = config.categories;
+            loadedTexts = config.texts;
+            applyCategories();
+          }
+          configLoaded = true;
+          return true;
         });
       }
       return configPromise;
+    }
+    function ensureConfig() {
+      if (!configWait) {
+        const deadline = new Promise((resolve) => {
+          setTimeout(() => resolve(false), CONFIG_WAIT_MS);
+        });
+        configWait = Promise.race([loadConfig(), deadline]);
+      }
+      return configWait;
     }
     function applyCategories() {
       const container = el("settings-container");
@@ -1616,7 +1633,7 @@ button:hover {
       container.textContent = "";
       renderCategoryCards(container);
     }
-    if (!getCookie("consent_status")) ensureConfig();
+    if (!getCookie("consent_status")) loadConfig();
     const META_PIXEL_ID = selfScript && selfScript.dataset && selfScript.dataset.metaPixelId || window.SEOS_META_PIXEL_ID || null;
     let metaPixelLoaded = false;
     const pageLang = (window.SEOS_COOKIE_LANG || document.documentElement.lang || "").split("-")[0].toLowerCase();
@@ -2395,6 +2412,7 @@ button:hover {
     async function openSettings() {
       await ensureConfig();
       applyDesign();
+      if (!configLoaded) defaultCardsShown = true;
       let choices = { analytics: false, marketing: false, functional: false };
       const status = getCookie("consent_status");
       const choicesJson = getCookie("consent_choices");
@@ -2599,7 +2617,13 @@ button:hover {
           log("[Init] Consent found - banner hidden");
           return;
         }
-        await ensureConfig();
+        const hasDesign = await loadConfig();
+        if (!hasDesign) {
+          log("[Init] Ingen config - bannern visas inte");
+          return;
+        }
+        const modalOpen = el(SETTINGS_ID).style.display === "flex" || el(POLICY_ID).style.display === "flex";
+        if (getCookie("consent_status") || modalOpen) return;
         applyDesign();
         showCookieBanner();
         log("[Init] No consent - showing banner");

@@ -286,10 +286,27 @@ import bannerCss from './style.css';
     }));
   }
 
-  // Hur lange bannern vantar pa designen innan den visar sig anda. Vid trafik
-  // ligger svaret pa CDN:et och kommer pa nagra tiotals millisekunder; grensen
-  // slar bara till vid kall cache eller stromavbrott i andra anden.
-  const CONFIG_TIMEOUT_MS = 800;
+  // BESLUT 2026-09-15 (Björn): BANNERN VISAS BARA I SAJTENS RÄTTA DESIGN.
+  // Hellre ingen banner än en banner i fel färger. Gränsen var tidigare 800 ms,
+  // och en kall väg efter en API-deploy mättes till 1,2 s - kunden fick då SEOS
+  // färger. Nu väntar bannern in svaret, och uteblir det visas ingen banner.
+  //
+  // Det är mindre dramatiskt än det låter: går configen inte att hämta går
+  // samtycket inte heller att spara, för bevisloggen ligger i samma API. Och
+  // inget spårar utan samtycke - Consent Mode och vakten håller tillbaka.
+  //
+  // Samtycket väntar aldrig på det här: Googles signaler, bevisloggen och kön
+  // körs före väntan i initializeBanner().
+
+  // Hur länge ett anrop får pågå innan bannern ger upp helt. Så länge får
+  // alltså en besökare som mest vänta på bannern.
+  const CONFIG_ABORT_MS = 15000;
+
+  // UNDANTAGET: när besökaren SJÄLV klickar - en fotlänk eller
+  // window.openSettings() - öppnas rutan efter så här lång tid även utan
+  // design. Den som klickar vill ofta återkalla ett samtycke, och det ska gå
+  // även vid ett avbrott. Björns beslut 2026-09-15.
+  const CONFIG_WAIT_MS = 3000;
 
   let loadedDesign = null;
   let loadedCategories = null;
@@ -430,12 +447,21 @@ import bannerCss from './style.css';
   // Tomt svar. Bannern kor sina standardvarden och sina fyra kategorier.
   const EMPTY_CONFIG = { design: {}, categories: [], texts: {} };
 
+  /**
+   * Hämtar sajtens config. Returnerar null när den inte gick att hämta.
+   *
+   * ⚠️ SKILJ PÅ TOMT OCH MISSLYCKAT. Ett giltigt svar med tom design är sajtens
+   * rätta design - seosdesign kör basvärdena med flit. null betyder att vi
+   * inte vet hur sajten ska se ut, och då visas ingen banner.
+   */
   async function fetchConfig() {
-    // Utan site key finns inget att sla upp.
+    // Utan site key finns inget att sla upp, och alltså inget att vänta på.
+    // Standardvärdena är då det enda som finns. Det är en felaktigt inlagd
+    // tagg, inte ett tidsproblem - se "SITE KEY MÅSTE LIGGA I HTML:EN".
     if (!SITE_KEY) return EMPTY_CONFIG;
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), CONFIG_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), CONFIG_ABORT_MS);
 
     try {
       // Tidsstampeln gor adressen unik, sa CDN:et inte kan svara ur cachen.
@@ -444,11 +470,13 @@ import bannerCss from './style.css';
         `${API_BASE_URL}/config/${encodeURIComponent(SITE_KEY)}` +
         (isFreshMode() ? `?farsk=${Date.now()}` : '');
 
+      // 404 är en sajt som stängts av i databasen. Förut ritades då en banner
+      // i standardfärger som samlade samtycken som aldrig sparades.
       const response = await fetch(url, { signal: controller.signal });
-      if (!response.ok) return EMPTY_CONFIG;
+      if (!response.ok) return null;
 
       const data = await response.json();
-      if (!data || typeof data !== 'object') return EMPTY_CONFIG;
+      if (!data || typeof data !== 'object') return null;
 
       const design = data.design;
       const cleaned = {};
@@ -471,31 +499,69 @@ import bannerCss from './style.css';
         texts: sanitizeTexts(data.texts),
       };
     } catch (error) {
-      // Avbrott, natverksfel eller trasigt svar: bannern ska visa sig anda.
-      // En banner som uteblir for att configen inte gick att hamta vore ett
-      // mycket varre fel an en banner i fel farger.
+      // Avbrott, natverksfel eller trasigt svar. Tidigare visade sig bannern
+      // anda, i standardfarger. Sedan 2026-09-15 gor den inte det - se
+      // CONFIG_ABORT_MS.
       log('[Config] Kunde inte hamta config:', error && error.message);
-      return EMPTY_CONFIG;
+      return null;
     } finally {
       clearTimeout(timer);
     }
   }
 
   let configPromise = null;
+  let configWait = null;
+  let configLoaded = false;
+  let defaultCardsShown = false;
 
-  /** Hamtar configen hogst en gang, oavsett hur manga som fragar. */
-  function ensureConfig() {
+  /**
+   * Hämtar configen högst en gång, oavsett hur många som frågar.
+   *
+   * Uppfylls med true när ett giltigt svar kommit, false när det inte gick.
+   * Väntar så länge anropet pågår - det är den här bannern själv väntar på.
+   *
+   * ⚠️ HAR BESÖKAREN REDAN SETT BANNERNS EGNA KORT GER SVARET BARA FÄRGER.
+   * Öppnas inställningarna via en fotlänk innan svaret kommit ritas bannerns
+   * fyra kort, och besökaren kan slå på ett reglage. Att rita om korten när
+   * svaret sedan kommer hade slagit av det tyst - och bevisloggen hade fått ett
+   * annat svar än det besökaren gav. Färgerna rör inget val.
+   */
+  function loadConfig() {
     if (!configPromise) {
       configPromise = fetchConfig().then((config) => {
+        if (!config) return false;
+
         loadedDesign = config.design;
-        loadedCategories = config.categories;
-        loadedTexts = config.texts;
         applyDesign();
-        applyCategories();
-        return config;
+
+        if (!defaultCardsShown) {
+          loadedCategories = config.categories;
+          loadedTexts = config.texts;
+          applyCategories();
+        }
+
+        configLoaded = true;
+        return true;
       });
     }
     return configPromise;
+  }
+
+  /**
+   * Som loadConfig(), men ger upp efter CONFIG_WAIT_MS. Bara för det
+   * besökaren själv klickar fram - se undantaget vid CONFIG_WAIT_MS.
+   *
+   * Gränsen räknas från första anropet och delas av alla som väntar, så ett
+   * andra klick får aldrig vänta en gång till.
+   */
+  function ensureConfig() {
+    if (!configWait) {
+      const deadline = new Promise((resolve) => {
+        setTimeout(() => resolve(false), CONFIG_WAIT_MS);
+      });
+      configWait = Promise.race([loadConfig(), deadline]);
+    }
+    return configWait;
   }
 
   /**
@@ -534,7 +600,7 @@ import bannerCss from './style.css';
   // Startas HAR och inte i initializeBanner(): da loper hamtningen parallellt
   // med att sidan bygger klart och med de 50 ms som initieringen anda vantar.
   // Svaret ar darfor oftast framme innan bannern ska visas.
-  if (!getCookie('consent_status')) ensureConfig();
+  if (!getCookie('consent_status')) loadConfig();
 
   // Meta-pixel: sätt data-meta-pixel-id på scripttaggen sa laddar bannern
   // pixeln FORST vid samtycke till marknadsforing. Ingen pixelkod ska ligga
@@ -1867,6 +1933,10 @@ import bannerCss from './style.css';
     await ensureConfig();
     applyDesign();
 
+    // Kom configen inte i tid ritas bannerns egna kort. Ett sent svar får då
+    // inte rita om dem - se loadConfig().
+    if (!configLoaded) defaultCardsShown = true;
+
     let choices = { analytics: false, marketing: false, functional: false };
 
     const status = getCookie('consent_status');
@@ -2204,11 +2274,21 @@ import bannerCss from './style.css';
       // brevenshus fran mork till beige. En cookiebanner som blinkar om ser
       // trasig ut, och fortroende ar hela poangen med den har produkten.
       //
-      // Vantan har redan en tidsgrans inbyggd (se fetchConfig) och kan darfor
-      // inte hanga: uteblir svaret visas bannern med sina standardvarden.
-      await ensureConfig();
-      applyDesign();
+      // Vantan kan inte hanga: anropet avbryts efter CONFIG_ABORT_MS. Uteblir
+      // svaret visas INGEN banner - aldrig en i fel farger. Se CONFIG_ABORT_MS.
+      const hasDesign = await loadConfig();
+      if (!hasDesign) {
+        log('[Init] Ingen config - bannern visas inte');
+        return;
+      }
 
+      // Under vantan kan besokaren ha klickat pa en fotlank och svarat, eller
+      // ha en ruta oppen. Bannern far da inte lagga sig over den.
+      const modalOpen =
+        el(SETTINGS_ID).style.display === 'flex' || el(POLICY_ID).style.display === 'flex';
+      if (getCookie('consent_status') || modalOpen) return;
+
+      applyDesign();
       showCookieBanner();
       log('[Init] No consent - showing banner');
     }, 50);
