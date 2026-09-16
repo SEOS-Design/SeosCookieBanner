@@ -72,9 +72,10 @@ module.exports = [
   {
     namn: 'tillvaxtstod',
     url: 'https://www.tillvaxtstod.se/',
-    // Kor fortfarande den gamla filen. Byts till /v1/banner.js i samma veva
-    // som Meta-deployen - da ska den har raden andras.
-    skript: '/js/script.js',
+    // Bytte till /v1/banner.js med Meta-deployen 2026-09-16. Designen kommer
+    // fran design/tillvaxtstod.css, som aterskapar det utseende kundens egen
+    // CSS gav den gamla filen.
+    skript: '/v1/banner.js',
     accepteraText: 'Acceptera alla',
     // Next.js sprakval. Lagras fore samtycke men bar bara vilket sprak sidan
     // ska visas pa - LEK:s undantag for det besokaren efterfragat.
