@@ -83,4 +83,17 @@ module.exports = [
     // Kor vag A (gtag direkt) och har aldrig omfattats av det strangare laget.
     tillatnaSparare: ['google-analytics.com', 'analytics.google.com'],
   },
+  {
+    namn: 'tillvaxthuset',
+    url: 'https://www.tillvaxthuset.se/',
+    skript: '/v1/banner.js',
+    accepteraText: 'Acceptera alla',
+    // Cloudflare Turnstile, botskyddet i kontaktformularet. Sessionscookie som
+    // bara skiljer manniskor fran robotar - nodvandig for att formularet ska
+    // fungera. Uppmatt 2026-09-17 och beskriven i sajtens cookiepolicy 1.1.0.
+    tillatnaCookies: ['_cfuvid'],
+    // Webflow utan analys eller annonser - uppmatt 2026-09-17. Tom lista =
+    // strangaste laget. Laggs GA till senare ska det provas har forst.
+    tillatnaSparare: [],
+  },
 ];
