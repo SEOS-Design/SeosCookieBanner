@@ -1056,10 +1056,10 @@ test.describe('Design fran databasen (C1 steg 1)', () => {
     expect(anrop.length).toBe(1);
     expect(await bannerBakgrund(page)).toBe(BEIGE);
   });
-  test('farsklaget gar forbi cachen, vanligt lage gor det inte', async ({ page }) => {
-    // Configen cachas en timme, vilket ar ratt for besokare men fel for den
-    // som sitter och justerar farger. ?seos_farsk=1 far just den
-    // sidladdningen att hamta direkt ur databasen.
+  test('forhandslaget gar forbi cachen, vanligt lage gor det inte', async ({ page }) => {
+    // Configen cachas, vilket ar ratt for besokare men fel for den som sitter
+    // och justerar farger. ?seos_preview far just den sidladdningen att
+    // hamta direkt ur databasen. Het ?seos_farsk=1 fram till 2026-09-18.
     const adresser = [];
     page.on('request', (r) => {
       if (r.url().includes('/config/')) adresser.push(r.url());
@@ -1070,13 +1070,13 @@ test.describe('Design fran databasen (C1 steg 1)', () => {
 
     await page.goto(SIDA.utanPixel);
     await expect(page.locator('#cookie-banner')).toBeVisible();
-    expect(adresser[0]).not.toContain('farsk=');
+    expect(adresser[0]).not.toContain('preview=');
 
     adresser.length = 0;
-    await page.goto(SIDA.utanPixel + '?seos_farsk=1');
+    await page.goto(SIDA.utanPixel + '?seos_preview');
     await expect(page.locator('#cookie-banner')).toBeVisible();
     // Tidsstampeln gor adressen unik sa CDN:et inte kan svara ur cachen.
-    expect(adresser[0]).toContain('farsk=');
+    expect(adresser[0]).toContain('preview=');
     expect(await bannerBakgrund(page)).toBe(BEIGE);
   });
 

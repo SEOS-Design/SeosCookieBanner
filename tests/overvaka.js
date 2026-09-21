@@ -114,7 +114,10 @@ async function kontrollera(webblasare, sajt) {
 (async () => {
   if (process.env.TESTLARM === 'true') {
     console.log('TESTLARM - inget riktigt fel. Kontrollerar bara att notiser kommer fram.');
-    console.log('::brister::TESTLARM: kontroll av notiskedjan');
+    // Texten innehaller med flit samma tecken som riktiga fynd: backticks,
+    // ${...} och citattecken. Fram till 2026-09-21 saknade den dem, och darfor
+    // gick testlarmet igenom medan varje riktigt larm kraschade.
+    console.log('::brister::TESTLARM: kontroll av notiskedjan - `cookie_test` ${ej_variabel} "citat"');
     process.exit(1);
   }
 

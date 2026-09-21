@@ -92,8 +92,11 @@ module.exports = [
     // bara skiljer manniskor fran robotar - nodvandig for att formularet ska
     // fungera. Uppmatt 2026-09-17 och beskriven i sajtens cookiepolicy 1.1.0.
     tillatnaCookies: ['_cfuvid'],
-    // Webflow utan analys eller annonser - uppmatt 2026-09-17. Tom lista =
-    // strangaste laget. Laggs GA till senare ska det provas har forst.
-    tillatnaSparare: [],
+    // GA infort 2026-09-21. Forst via Webflows egen Google-integration, som
+    // satte _ga i 400 dagar fore samtycke - skannern larmade 13:01. Flyttat
+    // samma dag till anpassad huvudkod efter consent default, och darefter
+    // uppmatt: inga cookies fore samtycke, bara Consent Modes cookielosa
+    // anrop. Samma hallning som de andra GA-sajterna.
+    tillatnaSparare: ['google-analytics.com', 'analytics.google.com'],
   },
 ];

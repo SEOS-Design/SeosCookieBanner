@@ -70,9 +70,18 @@ jobs:
       - name: Oppna eller uppdatera issue
         if: steps.kontroll.outputs.failed == 'true'
         uses: actions/github-script@v9
+        # Texten skickas via en miljovariabel och klistras ALDRIG in i skriptet.
+        # Fram till 2026-09-21 stod den inom backticks direkt i koden, och
+        # felbeskrivningarna innehaller sjalva backticks runt cookienamnen -
+        # skriptet blev ogiltig JavaScript och kraschade. Larmet 2026-09-21
+        # 13:01 (tillvaxthuset, _ga fore samtycke) nadde darfor aldrig fram,
+        # och troligen inget riktigt fynd fore det. Testlarmet fungerade bara
+        # for att dess text saknar backticks.
+        env:
+          BRISTER: ${{ steps.kontroll.outputs.brister }}
         with:
           script: |
-            const raw = `${{ steps.kontroll.outputs.brister }}`;
+            const raw = process.env.BRISTER ?? "";
             const brister = raw.replace(/%0A/g, "\n");
             const arTest = brister.includes("TESTLARM");
 

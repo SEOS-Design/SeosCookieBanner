@@ -424,21 +424,26 @@ import bannerCss from './style.css';
   }
 
   /**
-   * FARSKLAGE - for den som designar, inte for besokare.
+   * FORHANDSLAGE - for den som designar, inte for besokare.
    *
-   * Configen cachas en timme pa CDN:et. Det ar ratt for besokare men fel for
-   * den som sitter och justerar farger: en andring skulle synas forst nasta
-   * timme. Lagg till ?seos_farsk=1 i adressen (eller satt window.SEOS_FARSK)
-   * sa gar just den sidladdningen forbi cachen och hamtar direkt ur databasen.
+   * Configen cachas pa CDN:et. Det ar ratt for besokare men fel for den som
+   * sitter och justerar farger: en andring skulle synas forst timmar senare.
+   * Lagg till ?seos_preview i adressen (eller satt window.SEOS_PREVIEW) sa
+   * gar just den sidladdningen forbi cachen och hamtar direkt ur databasen.
+   *
+   * Het ?seos_farsk=1 fram till 2026-09-18. Det gamla namnet fungerar kvar en
+   * tid, sa gamla bokmarken och aldre utskrifter inte slutar fungera mitt i
+   * ett designarbete.
    *
    * Kostar ingenting i drift: bara den som sjalv ber om det gar forbi cachen,
    * och det ar en manniska at gangen. Ger heller ingen ny angreppsyta -
    * policy-endpointen ar redan ocachad och traffar databasen pa samma satt.
    */
-  function isFreshMode() {
+  function isPreviewMode() {
     try {
-      if (window.SEOS_FARSK) return true;
-      return new URLSearchParams(window.location.search).has('seos_farsk');
+      if (window.SEOS_PREVIEW || window.SEOS_FARSK) return true;
+      var parametrar = new URLSearchParams(window.location.search);
+      return parametrar.has('seos_preview') || parametrar.has('seos_farsk');
     } catch (e) {
       return false;
     }
@@ -468,7 +473,7 @@ import bannerCss from './style.css';
       // API:t ser samma parameter och hoppar over sin egen minnescache.
       const url =
         `${API_BASE_URL}/config/${encodeURIComponent(SITE_KEY)}` +
-        (isFreshMode() ? `?farsk=${Date.now()}` : '');
+        (isPreviewMode() ? `?preview=${Date.now()}` : '');
 
       // 404 är en sajt som stängts av i databasen. Förut ritades då en banner
       // i standardfärger som samlade samtycken som aldrig sparades.

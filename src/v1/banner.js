@@ -1555,10 +1555,11 @@ button:hover {
         host.style.setProperty("--" + key, loadedDesign[key]);
       }
     }
-    function isFreshMode() {
+    function isPreviewMode() {
       try {
-        if (window.SEOS_FARSK) return true;
-        return new URLSearchParams(window.location.search).has("seos_farsk");
+        if (window.SEOS_PREVIEW || window.SEOS_FARSK) return true;
+        var parametrar = new URLSearchParams(window.location.search);
+        return parametrar.has("seos_preview") || parametrar.has("seos_farsk");
       } catch (e) {
         return false;
       }
@@ -1569,7 +1570,7 @@ button:hover {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), CONFIG_ABORT_MS);
       try {
-        const url = `${API_BASE_URL}/config/${encodeURIComponent(SITE_KEY)}` + (isFreshMode() ? `?farsk=${Date.now()}` : "");
+        const url = `${API_BASE_URL}/config/${encodeURIComponent(SITE_KEY)}` + (isPreviewMode() ? `?preview=${Date.now()}` : "");
         const response = await fetch(url, { signal: controller.signal });
         if (!response.ok) return null;
         const data = await response.json();
