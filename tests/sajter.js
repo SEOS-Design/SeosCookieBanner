@@ -112,4 +112,19 @@ module.exports = [
     // gtag direkt med Consent Mode, som tillvaxtstod.
     tillatnaSparare: ['google-analytics.com', 'analytics.google.com'],
   },
+  {
+    namn: 'allamallar',
+    url: 'https://www.allamallar.se/',
+    // SEOS egen sajt (Next.js, repot Hejsangithub/allamallar). Live med
+    // bannern 2026-09-21.
+    skript: '/v1/banner.js',
+    accepteraText: 'Acceptera alla',
+    // Wizardens svar ligger i sessionStorage, inga egna cookies.
+    tillatnaCookies: [],
+    // STRANGASTE LAGET, med flit: sajtens egen grind (components/Analytics.tsx)
+    // hamtar inte ens gtag.js fore samtycke, sa inga cookielosa pingar heller.
+    // Uppmatt 2026-09-21: noll anrop till Google fore svar. Borjar det komma
+    // pingar har grinden gatt sonder - da ska det larma.
+    tillatnaSparare: [],
+  },
 ];

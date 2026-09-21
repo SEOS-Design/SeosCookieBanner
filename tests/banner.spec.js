@@ -1141,17 +1141,25 @@ test.describe('Design fran databasen (C1 steg 1)', () => {
     expect(radier.reglage).toBe('999px');
   });
 
-  test('utan toggle-radius foljer reglaget knapparnas radie, precis som forut', async ({ page }) => {
+  // Fram till 2026-09-21 foljde reglaget knapparnas radie nar sajten inte
+  // satte toggle-radius. Sajter med 8-10px knappar (allamallar, leadingcar,
+  // skapafaktura) fick darfor kantiga reglage. Bjorn vill ha dem runda overallt.
+  test('utan toggle-radius ar reglaget helt runt, aven nar knapparna ar kantiga', async ({ page }) => {
     await medSkugga(page);
     await medDesign(page, { 'radius-md': '2px' });
 
     await page.goto(SIDA.utanPixel);
     await expect(page.locator('#cookie-banner')).toBeVisible();
 
-    const reglage = await page.evaluate(
-      () => getComputedStyle(window.skugga().querySelector('.toggle-switch')).borderRadius
-    );
-    expect(reglage).toBe('2px');
+    const radier = await page.evaluate(() => {
+      const skugga = window.skugga();
+      return {
+        knapp: getComputedStyle(skugga.querySelector('.btn-save')).borderRadius,
+        reglage: getComputedStyle(skugga.querySelector('.toggle-switch')).borderRadius,
+      };
+    });
+    expect(radier.knapp).toBe('2px');
+    expect(radier.reglage).toBe('999px');
   });
 });
 

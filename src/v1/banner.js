@@ -765,11 +765,13 @@
   --radius-md: 12px;
   --radius-lg: 16px;
 
-  /* Reglagets egen radie. Lag tidigare pa --radius-md, som ocksa styr
-     KNAPPARNA - en kund som ville ha kantiga knappar fick kantiga reglage pa
-     kopet. Basvardet ar samma 12px, och pa ett 24px hogt reglage ar det exakt
-     halva hojden, alltsa en helt rund pill precis som forut. */
-  --toggle-radius: var(--radius-md);
+  /* Reglagets egen radie: HELT RUND som standard, oberoende av knapparna.
+     Fram till 2026-09-21 foljde den --radius-md, och sajter med 8-10px
+     knappar (allamallar, leadingcar, skapafaktura) fick kantiga reglage.
+     Bjorns beslut: runda overallt. Sajter med 12px eller mer ser likadana ut
+     som forut - pa ett 24px hogt reglage ar 12px redan en hel pill. Vill en
+     sajt anda ha kantiga reglage satts toggle-radius i dess designfil. */
+  --toggle-radius: 999px;
 
   /* Avstandsskala, 320px -> 1240px. Geometri: lika overallt. */
   --space-xs: clamp(0.375rem, 0.35rem + 0.1vw, 0.5rem);
