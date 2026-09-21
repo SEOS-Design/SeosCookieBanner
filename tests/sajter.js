@@ -99,4 +99,17 @@ module.exports = [
     // anrop. Samma hallning som de andra GA-sajterna.
     tillatnaSparare: ['google-analytics.com', 'analytics.google.com'],
   },
+  {
+    namn: 'skapafaktura',
+    url: 'https://www.skapafaktura.nu/',
+    // SEOS egen sajt (Next.js, repot Hejsangithub/skapafaktura-nu). Live med
+    // bannern 2026-09-21. Fore dess satte GA _ga i 400 dagar utan samtycke.
+    skript: '/v1/banner.js',
+    accepteraText: 'Acceptera alla',
+    // Inga egna cookies fore samtycke. Fakturautkastet ligger i localStorage,
+    // som skannern inte laser - det redovisas som nodvandigt i cookiepolicyn.
+    tillatnaCookies: [],
+    // gtag direkt med Consent Mode, som tillvaxtstod.
+    tillatnaSparare: ['google-analytics.com', 'analytics.google.com'],
+  },
 ];
