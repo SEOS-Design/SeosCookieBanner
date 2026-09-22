@@ -154,4 +154,20 @@ module.exports = [
     // STRANGASTE LAGET, samma grind som teorimotorn.
     tillatnaSparare: [],
   },
+  {
+    namn: 'aktieforumet',
+    url: 'https://www.aktieforumet.se/',
+    // Next.js (repot Hejsangithub/aktieforumet, grenen master). Live med
+    // bannern 2026-09-22, ersatte en CookieYes-tagg som svarat 403 och inte
+    // visat nagon banner alls. STRIKT CSP i next.config.mjs - forsvinner
+    // bannerns adresser darifran ar det har den upptacks.
+    skript: '/v1/banner.js',
+    accepteraText: 'Acceptera alla',
+    // Inga egna cookies. Bevakningslista, tema och popupval ligger i
+    // localStorage - se policy 1.1.0.
+    tillatnaCookies: [],
+    // gtag laddas direkt med Consent Mode, som skapafaktura. Integritets-
+    // policyn beskriver de cookielosa pingarna uttryckligen.
+    tillatnaSparare: ['google-analytics.com', 'analytics.google.com'],
+  },
 ];
