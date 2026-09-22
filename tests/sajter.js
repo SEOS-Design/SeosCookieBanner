@@ -127,4 +127,19 @@ module.exports = [
     // pingar har grinden gatt sonder - da ska det larma.
     tillatnaSparare: [],
   },
+  {
+    namn: 'teorimotorn',
+    url: 'https://www.teorimotorn.se/',
+    // Astro-sajt (repot Hejsangithub/teorimotorn). Live med bannern 2026-09-22.
+    // Ersatte en egenbyggd ruta som bara sparade "ja"/"nej" i localStorage.
+    skript: '/v1/banner.js',
+    accepteraText: 'Acceptera alla',
+    // Inga egna cookies. Traningsdatan ligger i localStorage, som skannern
+    // inte laser - den redovisas som nodvandig i cookiepolicy 1.1.0.
+    tillatnaCookies: [],
+    // STRANGASTE LAGET, som allamallar: grinden i src/components/Samtycke.astro
+    // hamtar gtag.js forst nar bannern skickar analytics_storage 'granted'.
+    // Kommer det pingar till Google fore svar har grinden gatt sonder.
+    tillatnaSparare: [],
+  },
 ];
