@@ -142,4 +142,16 @@ module.exports = [
     // Kommer det pingar till Google fore svar har grinden gatt sonder.
     tillatnaSparare: [],
   },
+  {
+    namn: 'hpmotorn',
+    url: 'https://www.hpmotorn.se/',
+    // Astro-sajt (repot Hejsangithub/hpmotorn), samma motor som teorimotorn.
+    // Live med bannern 2026-09-22.
+    skript: '/v1/banner.js',
+    accepteraText: 'Acceptera alla',
+    // Inga egna cookies. Traningsdatan ligger i localStorage - se policy 1.1.0.
+    tillatnaCookies: [],
+    // STRANGASTE LAGET, samma grind som teorimotorn.
+    tillatnaSparare: [],
+  },
 ];
